@@ -1,0 +1,10 @@
+spring:
+  threads:
+    virtual:
+      enabled: true
+
+
+app:
+  storagePath: ./nodes/${app.id}
+  filesToPlotPath: ./nodes/files
+  seed: 0.0.0.0:8080
