@@ -19,7 +19,7 @@ public class MerkleTree implements Serializable {
 
     public static int FANOUT = 2;
     public int LEAVES;
-    private static int SLOTH_ITERATIONS = 45000;
+    private static int SLOTH_ITERATIONS = 20; //45000Approx 1.3ms per Block which matches Chia generation time
     private MerkleNode root;
     private MySloth.SlothResult slothResult;
 
@@ -56,14 +56,14 @@ public class MerkleTree implements Serializable {
         BigInteger sloth = slothResult.getHash();
         BigInteger root = new BigInteger(this.root.data);
         BigInteger nonce = root.add(sloth);
-        nonce.add(new BigInteger(publicKey));
+        //nonce.add(new BigInteger(publicKey));
         return CryptoUtils.hash256(nonce.toByteArray());
     }
     @JsonIgnore
     public static byte[] getSlothNonce(byte[] root, BigInteger sloth,byte[] publicKey) {
         BigInteger rootInt = new BigInteger(root);
         BigInteger nonce = rootInt.add(sloth);
-        nonce.add(new BigInteger(publicKey));
+        //nonce.add(new BigInteger(publicKey));
         return CryptoUtils.hash256(nonce.toByteArray());
     }
 

@@ -154,7 +154,6 @@ public class PoS {
 
     public static PosProof proofOfSpace(byte[] challenge, String plotFolder) {
         try {
-
             File folder = new File(plotFolder);
             File[] directories = folder.listFiles();
             String closestPlotPath = "";
@@ -252,7 +251,10 @@ public class PoS {
         return Math.min(1.0, Math.max(0.0, adjustedDifference));
     }
 
-    public static boolean verifyProof(PosProof proof,byte[] publicKey) {
+    public static boolean verifyProof(PosProof proof,byte[] challenge,byte[] publicKey) {
+        if(!Arrays.equals(proof.getChallenge(), challenge)){
+            return false;
+        }
         byte[] root = MerkleTree.rootFromProof(proof.getProof());
         boolean validSloth = MySloth.verify(proof.getSlothResult(),
                 new BigInteger(root).add(new BigInteger(publicKey)).toByteArray());
@@ -273,7 +275,7 @@ public class PoS {
         System.out.println("Challenge: " + Hex.encodeHexString(randomChallenge));
         PosProof proof = proofOfSpace(randomChallenge, "node4/originalFiles/plots");
         System.out.println("Proof quality: " + proofQuality(proof, randomChallenge,"key".getBytes()));
-        System.out.println("Proof valid: " + verifyProof(proof,"key".getBytes()));
+        System.out.println("Proof valid: " + verifyProof(proof,randomChallenge,"key".getBytes()));
 
         PosProof poRep = proofOfReplication("node4/originalFiles/plots/hello_txt",randomChallenge,"key".getBytes());
         System.out.println(MerkleTree.verifyProof(poRep.getProof(), poRep.getChallenge()));
@@ -284,7 +286,6 @@ public class PoS {
     public static class PosProof implements Serializable {
         private MySloth.SlothResult slothResult;
         private List<byte[]> proof;
-        private byte[] slothNonce;
         private byte[] challenge;
 
         public PosProof(MySloth.SlothResult slothResult, List<byte[]> proof, byte[] challenge) {
