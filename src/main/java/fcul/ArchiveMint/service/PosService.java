@@ -12,7 +12,7 @@ import fcul.ArchiveMint.utils.PoS.PosProof;
 
 @Service
 public class PosService {
-    private static final String PLOT_FOLDER = "plots";
+    public static final String PLOT_FOLDER = "plots";
     @Autowired
     NodeConfig nodeConfig;
     @Autowired

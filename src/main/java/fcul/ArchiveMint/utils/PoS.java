@@ -1,6 +1,8 @@
 package fcul.ArchiveMint.utils;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.ToString;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
@@ -283,6 +285,7 @@ public class PoS {
 
     @Getter
     @ToString
+    @NoArgsConstructor
     public static class PosProof implements Serializable {
         private MySloth.SlothResult slothResult;
         private List<byte[]> proof;

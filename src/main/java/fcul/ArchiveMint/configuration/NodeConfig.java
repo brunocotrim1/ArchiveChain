@@ -11,6 +11,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
+
+import static fcul.ArchiveMint.service.PosService.PLOT_FOLDER;
 
 @Component
 @NoArgsConstructor
@@ -27,6 +30,9 @@ public class NodeConfig {
             if(!Files.exists(Path.of(filesToPlotPath))){
                 Files.createDirectories(Paths.get(filesToPlotPath));
             }
+            if(!Files.exists(Path.of(storagePath+"/"+ PLOT_FOLDER))){
+                Files.createDirectories(Paths.get(storagePath+"/"+ PLOT_FOLDER));
+            }
             log.info("Created Node Folder at "+storagePath);
         } catch (IOException e) {
             e.printStackTrace();
@@ -34,6 +40,6 @@ public class NodeConfig {
     }
     private String id;
     private String storagePath;
-    private String seed;
     private String filesToPlotPath;
+    private List<String> seedNodes;
 }

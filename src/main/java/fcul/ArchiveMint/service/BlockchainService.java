@@ -6,13 +6,14 @@ import fcul.ArchiveMint.model.Peer;
 import fcul.ArchiveMint.model.Transaction;
 import fcul.ArchiveMint.utils.CryptoUtils;
 import fcul.ArchiveMint.utils.PoS;
-import fcul.ArchiveMint.utils.PoS.PosProof;
 import fcul.ArchiveMint.utils.wesolowskiVDF.ProofOfTime;
 import fcul.ArchiveMint.utils.wesolowskiVDF.WesolowskiVDF;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.encoders.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
@@ -20,6 +21,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 @Service
 @Data
@@ -35,16 +39,18 @@ public class BlockchainService {
     @Autowired
     private PosService posService;
     private WesolowskiVDF vdf = new WesolowskiVDF();
-    private int VDF_ITERATIONS = 20000;
-    private Thread currentVdfTask = null;
+    private int VDF_ITERATIONS = 2000000;
+    private Future<?> currentVdfTask = null;
     private Block blockBeingMined = null;
-
+    @Autowired
+    private NetworkService net;
+    private long finalizedBlockHeight = 0;
+    private Block lastFinalizedBlock = null;
+    public static ExecutorService myExecutor = Executors.newVirtualThreadPerTaskExecutor();
     public void startMining() {
         if (currentHeight > 0) {
             return;
         }
-        PosProof genesisChallengeProof = posService.generatePoSProof(genesisChallenge);
-        double quality = posService.proofQuality(genesisChallengeProof, keyManager.getPublicKey().getEncoded());
         Block genesisBlock = Block.builder()
                 .blockHeight(0)
                 .previousHash(new byte[32])
@@ -54,103 +60,106 @@ public class BlockchainService {
                 .potProof(null)
                 .minerPublicKey(keyManager.getPublicKey().getEncoded())
                 .build();
-        genesisBlock.setSignature(CryptoUtils.ecdsaSign(genesisBlock.getHash(), keyManager.getPrivateKey()));
-        VdfTask genesisVdfTask = new VdfTask(genesisBlock);
+        genesisBlock.setSignature(CryptoUtils.ecdsaSign(genesisBlock.calculateHash(), keyManager.getPrivateKey()));
+        currentVdfTask = myExecutor.submit(new VdfTask(genesisBlock));
+/*        VdfTask genesisVdfTask = new VdfTask(genesisBlock);
         Thread genesisThread = new Thread(genesisVdfTask);
         genesisThread.start();
-        currentVdfTask = genesisThread;
-        finalizedBlockChain.add(genesisBlock);
+        currentVdfTask = genesisThread;*/
     }
 
-    public synchronized void deliverBlock(Block block) {
+    public void deliverBlock(Block block) {
         synchronized (finalizedBlockChain){
-            Block lastFinalizedBlock = lastFinalizedBlock();
-            if(lastFinalizedBlock == null){
+            if(block.getBlockHeight() ==0 && finalizedBlockChain.size() <= 1){
                 validateGenesisBlock(block);
             }else{
-                validateBlock(block,lastFinalizedBlock);
+                validateBlock(block);
             }
+            finalizeBlock();
         }
     }
-
-    private Block lastFinalizedBlock() {
-        //Block with complete PoT
-        if(finalizedBlockChain.isEmpty()){
-            return null;
-        }
-        for(int i = finalizedBlockChain.size() - 1; i >= 0; i--){
-            if(finalizedBlockChain.get(i).getPotProof() != null){
-                return finalizedBlockChain.get(i);
-            }
-        }
-        return null;
-    }
-
-    public void validateBlock(Block block,Block lastFinalizedBlock){
-        if(block.getBlockHeight() < lastFinalizedBlock.getBlockHeight()){
-            return;
-        }
-        if(block.equals(lastFinalizedBlock) && finalizedBlockChain.size() == block.getBlockHeight()+1){
-            currentVdfTask.interrupt();
-            block = extendBlock(block);
-            currentVdfTask = new Thread(new VdfTask(block));
-            currentVdfTask.start();
-            return;
-        }
-        if(lastFinalizedBlock.getBlockHeight() == block.getBlockHeight()){
-            if(posService.proofQuality(block.getPosProof(),block.getMinerPublicKey()) <=
-                    posService.proofQuality(lastFinalizedBlock.getPosProof(),lastFinalizedBlock.getMinerPublicKey())){
+    private void finalizeBlock() {
+        if(finalizedBlockChain.size() -finalizedBlockHeight > 3){
+            if(lastFinalizedBlock !=null && lastFinalizedBlock.equals(finalizedBlockChain.get((int) finalizedBlockHeight))){
                 return;
             }
+            lastFinalizedBlock = finalizedBlockChain.get((int) finalizedBlockHeight);
+            System.out.println("Finalized block: " + lastFinalizedBlock);
+            finalizedBlockHeight++;
 
-            if (validateSignature(block) && validatePoT(block) &&
-                    validatePoS(block,finalizedBlockChain.get((int) lastFinalizedBlock.getBlockHeight() - 1))) {
-                //Case where finalized-blocks are equal height and new one is better replace block
+        }
+
+    }
+
+
+    public ResponseEntity<String> receiveBlock(Block block) {
+       /* Thread t = new Thread(() -> deliverBlock(block));
+        t.start();*/
+        myExecutor.submit(() -> deliverBlock(block));
+        return ResponseEntity.ok("Block received");
+    }
+
+    public void validateBlock(Block block){
+        Block lastFinalizedBlock = finalizedBlockChain.get(finalizedBlockChain.size()- 1);
+        double blockQuality = posService.proofQuality(block.getPosProof(),block.getMinerPublicKey());
+        double lastFinalizedBlockQuality = posService.proofQuality(lastFinalizedBlock.getPosProof(),
+                lastFinalizedBlock.getMinerPublicKey());
+        if(!(validateSignature(block) && validatePoT(block))){
+            return;
+        }
+        //System.out.println(Hex.toHexString(block.calculateHash()) + "Quality: " + blockQuality);
+        if(block.getBlockHeight() == lastFinalizedBlock.getBlockHeight()){
+            if(blockQuality <= lastFinalizedBlockQuality && new BigInteger(block.calculateHash())
+                    .compareTo(new BigInteger(lastFinalizedBlock.calculateHash())) <= 0){
+                return;
+            }
+            if(extendsChain(block, finalizedBlockChain.get((int) block.getBlockHeight() - 1))
+                    && validatePoS(block,finalizedBlockChain.get((int) block.getBlockHeight() - 1))){
                 finalizedBlockChain.remove(lastFinalizedBlock);
                 finalizedBlockChain.add(block);
+                extendBlock(block);
             }
-        } else if (block.getBlockHeight() == lastFinalizedBlock.getBlockHeight() + 1) {
-
-            if (extendsChain(block, lastFinalizedBlock) && validateSignature(block) && validatePoT(block) &&
-                    validatePoS(block, lastFinalizedBlock)) {
-
-                if(blockBeingMined !=null){
-                    Block blockBeingMined = finalizedBlockChain.get((int) lastFinalizedBlock.getBlockHeight()+1);
-                    if(posService.proofQuality(block.getPosProof(),block.getMinerPublicKey()) <=
-                            posService.proofQuality(blockBeingMined.getPosProof(),blockBeingMined.getMinerPublicKey())){
-                        //Case where VDF being calculated is better then the one received we ignore new block
+        }else if(block.getBlockHeight() == lastFinalizedBlock.getBlockHeight() + 1){
+            if(extendsChain(block,lastFinalizedBlock) && validatePoS(block,lastFinalizedBlock)){
+                if(blockBeingMined != null){
+                    double blockBeingMinedQuality = posService.proofQuality(blockBeingMined.getPosProof(),
+                            blockBeingMined.getMinerPublicKey());
+                    if(blockQuality <= blockBeingMinedQuality && new BigInteger(block.calculateHash())
+                            .compareTo(new BigInteger(blockBeingMined.calculateHash())) <= 0){
                         return;
                     }
                 }
-                finalizedBlockChain.remove(blockBeingMined);
                 finalizedBlockChain.add(block);
-                currentVdfTask.interrupt();
-                block = extendBlock(block);
-                currentVdfTask = new Thread(new VdfTask(block));
-                currentVdfTask.start();
+                extendBlock(block);
             }
-        } else if (block.getBlockHeight() > lastFinalizedBlock.getBlockHeight() + 1) {
-            //CHAIN SYNCHRONIZATION
 
         }
     }
 
-    private Block extendBlock(Block blockToExtend){
 
+    private void extendBlock(Block blockToExtend){
+        if(currentVdfTask != null){
+            currentVdfTask.cancel(true);
+        }
+        blockBeingMined = null;
         Block block =   Block.builder()
                 .blockHeight(blockToExtend.getBlockHeight()+1)
-                .previousHash(blockToExtend.getHash())
+                .previousHash(blockToExtend.calculateHash())
                 .timeStamp(Instant.now().toString())
                 .posProof(posService.generatePoSProof(CryptoUtils.hash256(blockToExtend.getPotProof().getProof().toByteArray())))
                 .minerPublicKey(keyManager.getPublicKey().getEncoded())
                 .build();
-        block.setSignature(CryptoUtils.ecdsaSign(block.getHash(),keyManager.getPrivateKey()));
-        return block;
+        block.setSignature(CryptoUtils.ecdsaSign(block.calculateHash(),keyManager.getPrivateKey()));
+
+        currentVdfTask = myExecutor.submit(new VdfTask(block));
+/*        Thread vdfThread = new Thread(new VdfTask(block));
+        vdfThread.start();
+        currentVdfTask = vdfThread;*/
     }
 
 
     public void validateGenesisBlock(Block block){
-        if(finalizedBlockChain.size() == 1){
+        if(finalizedBlockChain.size()==1){
             //Verify if our genesis being possibly mined is better than the one we have if no ignore, if yes validate
             // and substitute
             Block blockBeingMined = finalizedBlockChain.get(0);
@@ -162,6 +171,7 @@ public class BlockchainService {
         if(validateSignature(block) && validatePoT(block) && validatePoS(block,null)){
             finalizedBlockChain.clear();
             finalizedBlockChain.add(block);
+            extendBlock(block);
         }
     }
 
@@ -170,14 +180,14 @@ public class BlockchainService {
         if(lastFinalizedBlock == null){
             return Arrays.equals(block.getPreviousHash(),new byte[32]);
         }
-        return Arrays.equals(lastFinalizedBlock.getHash(), block.getPreviousHash());
+        return Arrays.equals(lastFinalizedBlock.calculateHash(), block.getPreviousHash());
     }
     private boolean validateSignature(Block block){
-        return CryptoUtils.ecdsaVerify(block.getSignature(),block.getHash(),block.getMinerPublicKey());
+        return CryptoUtils.ecdsaVerify(block.getSignature(),block.calculateHash(),block.getMinerPublicKey());
     }
     private boolean validatePoT(Block block){
         ProofOfTime pot = block.getPotProof();
-        byte[] challenge = new BigInteger(block.getHash())
+        byte[] challenge = new BigInteger(block.calculateHash())
                 .add(new BigInteger(block.getPosProof().getSlothResult().getHash().toByteArray())).toByteArray();
         return vdf.verify(challenge,pot.getT(),pot.getLPrime(),pot.getProof());
     }
@@ -205,17 +215,20 @@ public class BlockchainService {
 
         @Override
         public void run() {
-            log.info("Starting VDF computation for block: " + block);
+            //log.info("Starting VDF computation for block: " + block);
             blockBeingMined = block;
-            byte[] potChallenge = new BigInteger(block.getHash())
+            byte[] potChallenge = new BigInteger(block.calculateHash())
                     .add(new BigInteger(block.getPosProof().getSlothResult().getHash().toByteArray())).toByteArray();
-
+            int iterations = (int)Math.round(VDF_ITERATIONS * posService.proofQuality(block.getPosProof(),block.getMinerPublicKey()));
+            ProofOfTime pot = vdf.eval(potChallenge, iterations);
+            block.addProofOfTime(pot);
             synchronized (finalizedBlockChain){
-                int iterations = (int)Math.round(VDF_ITERATIONS * posService.proofQuality(block.getPosProof(),block.getMinerPublicKey()));
-                block.setPotProof(vdf.eval(potChallenge, iterations));
+                blockBeingMined = null;
+                net.broadcastBlock(block);
+                receiveBlock(block);
+
             }
-            blockBeingMined = null;
-            deliverBlock(block);
+
             //BROADCAST BLOCK
         }
     }

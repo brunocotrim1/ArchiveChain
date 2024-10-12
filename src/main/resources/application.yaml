@@ -7,4 +7,7 @@ spring:
 app:
   storagePath: ./nodes/${app.id}
   filesToPlotPath: ./nodes/files
-  seed: 0.0.0.0:8080
+  seedNodes:
+    - "http://localhost:8080"
+    - "http://localhost:8081"
+    - "http://localhost:8082"

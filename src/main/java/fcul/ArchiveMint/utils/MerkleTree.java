@@ -33,10 +33,8 @@ public class MerkleTree implements Serializable {
         List<MerkleNode> leaves = buildTreeLeavesFromData(dataLeaves);
 
         this.root = buildTreeRoot(leaves);
-        long time = System.currentTimeMillis();
         slothResult = MySloth.sloth(new BigInteger(root.data).add(new BigInteger(publicKey)).toByteArray(),
                 SLOTH_ITERATIONS);
-        System.out.println(System.currentTimeMillis()-time);
     }
 
     public MerkleTree(List<byte[]> data, int LEAVES,byte[] publicKey) {

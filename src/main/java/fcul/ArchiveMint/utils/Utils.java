@@ -1,5 +1,9 @@
 package fcul.ArchiveMint.utils;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
+import fcul.ArchiveMint.model.Block;
+
 import java.io.File;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -7,6 +11,7 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 
 public class Utils {
+    private static final Gson gson = new Gson();
     public static void removeFolderAndRecreate(String folder){
         File file = new File(folder);
         if(file.exists()){
@@ -106,6 +111,22 @@ public class Utils {
         buffer.order(byteOrder);
         buffer.putInt(number);
         return buffer.array();
+    }
+    public static String serializeBlock(Block block) {
+        try {
+            return gson.toJson(block);
+        } catch (Exception e) {
+            e.printStackTrace(); // Handle exception
+            return null;
+        }
+    }
+    public static Block deserializeBlock(String jsonString) {
+        try {
+            return gson.fromJson(jsonString, Block.class);
+        } catch (Exception e) {
+            e.printStackTrace(); // Handle exception
+            return null;
+        }
     }
 
     public static int byteArrayToInt(byte[] byteArray, ByteOrder byteOrder) {
