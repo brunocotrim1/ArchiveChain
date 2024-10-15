@@ -13,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.encoders.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
@@ -24,33 +23,41 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 @Data
 @Slf4j
 public class BlockchainService {
-    private List<Peer> peers = new ArrayList<>();
-    private final List<Block> finalizedBlockChain = new ArrayList<>();
-    private List<Transaction> pendingTransactions = new ArrayList<>();
-    private byte[] genesisChallenge = Hex.decode("ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb");
-    private long currentHeight = 0;
+    @Autowired
+    private NetworkService net;
     @Autowired
     private KeyManager keyManager;
     @Autowired
     private PosService posService;
+
+    private List<Peer> peers = new ArrayList<>();
+    private final List<Block> finalizedBlockChain = new ArrayList<>();
+    private List<Transaction> pendingTransactions = new ArrayList<>();
+
     private WesolowskiVDF vdf = new WesolowskiVDF();
-    private int VDF_ITERATIONS = 2000000;
+    private int VDF_ITERATIONS = 100000;
     private Future<?> currentVdfTask = null;
+
+    private byte[] genesisChallenge = Hex.decode("ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb");
     private Block blockBeingMined = null;
-    @Autowired
-    private NetworkService net;
     private long finalizedBlockHeight = 0;
     private Block lastFinalizedBlock = null;
-    public static ExecutorService myExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private ExecutorService vdfExecutor = Executors.newSingleThreadExecutor();
+    public static ExecutorService processingExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private final ReentrantLock blockProcessingLock = new ReentrantLock();
+
     public void startMining() {
-        if (currentHeight > 0) {
+        log.info("Starting mining");
+        if (finalizedBlockHeight > 0 || blockBeingMined != null) {
             return;
         }
+
         Block genesisBlock = Block.builder()
                 .blockHeight(0)
                 .previousHash(new byte[32])
@@ -61,7 +68,7 @@ public class BlockchainService {
                 .minerPublicKey(keyManager.getPublicKey().getEncoded())
                 .build();
         genesisBlock.setSignature(CryptoUtils.ecdsaSign(genesisBlock.calculateHash(), keyManager.getPrivateKey()));
-        currentVdfTask = myExecutor.submit(new VdfTask(genesisBlock));
+        currentVdfTask = vdfExecutor.submit(new VdfTask(genesisBlock));
 /*        VdfTask genesisVdfTask = new VdfTask(genesisBlock);
         Thread genesisThread = new Thread(genesisVdfTask);
         genesisThread.start();
@@ -69,18 +76,22 @@ public class BlockchainService {
     }
 
     public void deliverBlock(Block block) {
-        synchronized (finalizedBlockChain){
-            if(block.getBlockHeight() ==0 && finalizedBlockChain.size() <= 1){
+        blockProcessingLock.lock();
+        try {
+            if (block.getBlockHeight() == 0 && finalizedBlockChain.size() <= 1) {
                 validateGenesisBlock(block);
-            }else{
+            } else {
                 validateBlock(block);
             }
             finalizeBlock();
+        } finally {
+            blockProcessingLock.unlock();
         }
     }
+
     private void finalizeBlock() {
-        if(finalizedBlockChain.size() -finalizedBlockHeight > 3){
-            if(lastFinalizedBlock !=null && lastFinalizedBlock.equals(finalizedBlockChain.get((int) finalizedBlockHeight))){
+        if (finalizedBlockChain.size() - finalizedBlockHeight > 3) {
+            if (lastFinalizedBlock != null && lastFinalizedBlock.equals(finalizedBlockChain.get((int) finalizedBlockHeight))) {
                 return;
             }
             lastFinalizedBlock = finalizedBlockChain.get((int) finalizedBlockHeight);
@@ -95,37 +106,37 @@ public class BlockchainService {
     public ResponseEntity<String> receiveBlock(Block block) {
        /* Thread t = new Thread(() -> deliverBlock(block));
         t.start();*/
-        myExecutor.submit(() -> deliverBlock(block));
+        processingExecutor.submit(() -> deliverBlock(block));
         return ResponseEntity.ok("Block received");
     }
 
-    public void validateBlock(Block block){
-        Block lastFinalizedBlock = finalizedBlockChain.get(finalizedBlockChain.size()- 1);
-        double blockQuality = posService.proofQuality(block.getPosProof(),block.getMinerPublicKey());
+    public void validateBlock(Block block) {
+        Block lastFinalizedBlock = finalizedBlockChain.get(finalizedBlockChain.size() - 1);
+        double blockQuality = posService.proofQuality(block.getPosProof(), block.getMinerPublicKey());
         double lastFinalizedBlockQuality = posService.proofQuality(lastFinalizedBlock.getPosProof(),
                 lastFinalizedBlock.getMinerPublicKey());
-        if(!(validateSignature(block) && validatePoT(block))){
+        if (!(validateSignature(block) && validatePoT(block))) {
             return;
         }
         //System.out.println(Hex.toHexString(block.calculateHash()) + "Quality: " + blockQuality);
-        if(block.getBlockHeight() == lastFinalizedBlock.getBlockHeight()){
-            if(blockQuality <= lastFinalizedBlockQuality && new BigInteger(block.calculateHash())
-                    .compareTo(new BigInteger(lastFinalizedBlock.calculateHash())) <= 0){
+        if (block.getBlockHeight() == lastFinalizedBlock.getBlockHeight()) {
+            if (blockQuality <= lastFinalizedBlockQuality && new BigInteger(block.calculateHash())
+                    .compareTo(new BigInteger(lastFinalizedBlock.calculateHash())) <= 0) {
                 return;
             }
-            if(extendsChain(block, finalizedBlockChain.get((int) block.getBlockHeight() - 1))
-                    && validatePoS(block,finalizedBlockChain.get((int) block.getBlockHeight() - 1))){
+            if (extendsChain(block, finalizedBlockChain.get((int) block.getBlockHeight() - 1))
+                    && validatePoS(block, finalizedBlockChain.get((int) block.getBlockHeight() - 1))) {
                 finalizedBlockChain.remove(lastFinalizedBlock);
                 finalizedBlockChain.add(block);
                 extendBlock(block);
             }
-        }else if(block.getBlockHeight() == lastFinalizedBlock.getBlockHeight() + 1){
-            if(extendsChain(block,lastFinalizedBlock) && validatePoS(block,lastFinalizedBlock)){
-                if(blockBeingMined != null){
+        } else if (block.getBlockHeight() == lastFinalizedBlock.getBlockHeight() + 1) {
+            if (extendsChain(block, lastFinalizedBlock) && validatePoS(block, lastFinalizedBlock)) {
+                if (blockBeingMined != null) {
                     double blockBeingMinedQuality = posService.proofQuality(blockBeingMined.getPosProof(),
                             blockBeingMined.getMinerPublicKey());
-                    if(blockQuality <= blockBeingMinedQuality && new BigInteger(block.calculateHash())
-                            .compareTo(new BigInteger(blockBeingMined.calculateHash())) <= 0){
+                    if (blockQuality <= blockBeingMinedQuality && new BigInteger(block.calculateHash())
+                            .compareTo(new BigInteger(blockBeingMined.calculateHash())) <= 0) {
                         return;
                     }
                 }
@@ -137,38 +148,42 @@ public class BlockchainService {
     }
 
 
-    private void extendBlock(Block blockToExtend){
-        if(currentVdfTask != null){
+    private void extendBlock(Block blockToExtend) {
+        if (currentVdfTask != null) {
             currentVdfTask.cancel(true);
         }
-        blockBeingMined = null;
-        Block block =   Block.builder()
-                .blockHeight(blockToExtend.getBlockHeight()+1)
-                .previousHash(blockToExtend.calculateHash())
-                .timeStamp(Instant.now().toString())
-                .posProof(posService.generatePoSProof(CryptoUtils.hash256(blockToExtend.getPotProof().getProof().toByteArray())))
-                .minerPublicKey(keyManager.getPublicKey().getEncoded())
-                .build();
-        block.setSignature(CryptoUtils.ecdsaSign(block.calculateHash(),keyManager.getPrivateKey()));
+        try {
+            blockBeingMined = null;
+            Block block = Block.builder()
+                    .blockHeight(blockToExtend.getBlockHeight() + 1)
+                    .previousHash(blockToExtend.calculateHash())
+                    .timeStamp(Instant.now().toString())
+                    .posProof(posService.generatePoSProof(CryptoUtils.hash256(blockToExtend.getPotProof().getProof().toByteArray())))
+                    .minerPublicKey(keyManager.getPublicKey().getEncoded())
+                    .build();
+            block.setSignature(CryptoUtils.ecdsaSign(block.calculateHash(), keyManager.getPrivateKey()));
 
-        currentVdfTask = myExecutor.submit(new VdfTask(block));
+            currentVdfTask = vdfExecutor.submit(new VdfTask(block));
+        } catch (Exception e) {
+            log.error("Error extending block: " + e.getMessage());
+        }
 /*        Thread vdfThread = new Thread(new VdfTask(block));
         vdfThread.start();
         currentVdfTask = vdfThread;*/
     }
 
 
-    public void validateGenesisBlock(Block block){
-        if(finalizedBlockChain.size()==1){
+    public void validateGenesisBlock(Block block) {
+        if (finalizedBlockChain.size() == 1) {
             //Verify if our genesis being possibly mined is better than the one we have if no ignore, if yes validate
             // and substitute
             Block blockBeingMined = finalizedBlockChain.get(0);
-            if(PoS.proofQuality(block.getPosProof(),block.getPosProof().getChallenge(),block.getMinerPublicKey()) <=
-                    PoS.proofQuality(blockBeingMined.getPosProof(),blockBeingMined.getPosProof().getChallenge(),blockBeingMined.getMinerPublicKey())){
+            if (PoS.proofQuality(block.getPosProof(), block.getPosProof().getChallenge(), block.getMinerPublicKey()) <=
+                    PoS.proofQuality(blockBeingMined.getPosProof(), blockBeingMined.getPosProof().getChallenge(), blockBeingMined.getMinerPublicKey())) {
                 return;
             }
         }
-        if(validateSignature(block) && validatePoT(block) && validatePoS(block,null)){
+        if (validateSignature(block) && validatePoT(block) && validatePoS(block, null)) {
             finalizedBlockChain.clear();
             finalizedBlockChain.add(block);
             extendBlock(block);
@@ -176,33 +191,34 @@ public class BlockchainService {
     }
 
 
-    private boolean extendsChain(Block block,Block lastFinalizedBlock) {
-        if(lastFinalizedBlock == null){
-            return Arrays.equals(block.getPreviousHash(),new byte[32]);
+    private boolean extendsChain(Block block, Block lastFinalizedBlock) {
+        if (lastFinalizedBlock == null) {
+            return Arrays.equals(block.getPreviousHash(), new byte[32]);
         }
         return Arrays.equals(lastFinalizedBlock.calculateHash(), block.getPreviousHash());
     }
-    private boolean validateSignature(Block block){
-        return CryptoUtils.ecdsaVerify(block.getSignature(),block.calculateHash(),block.getMinerPublicKey());
+
+    private boolean validateSignature(Block block) {
+        return CryptoUtils.ecdsaVerify(block.getSignature(), block.calculateHash(), block.getMinerPublicKey());
     }
-    private boolean validatePoT(Block block){
+
+    private boolean validatePoT(Block block) {
         ProofOfTime pot = block.getPotProof();
         byte[] challenge = new BigInteger(block.calculateHash())
                 .add(new BigInteger(block.getPosProof().getSlothResult().getHash().toByteArray())).toByteArray();
-        return vdf.verify(challenge,pot.getT(),pot.getLPrime(),pot.getProof());
+        return vdf.verify(challenge, pot.getT(), pot.getLPrime(), pot.getProof());
     }
 
-    private boolean validatePoS(Block block,Block lastFinalizedBlock){
+    private boolean validatePoS(Block block, Block lastFinalizedBlock) {
         byte[] challenge = null;
-        if (lastFinalizedBlock== null) {
+        if (lastFinalizedBlock == null) {
             challenge = genesisChallenge;
         } else {
             //Challenge of PoS is the hash of the PoT of the previous block height
             challenge = CryptoUtils.hash256(lastFinalizedBlock.getPotProof().getProof().toByteArray());
         }
-        return posService.verifyProof(block.getPosProof(),challenge,block.getMinerPublicKey());
+        return posService.verifyProof(block.getPosProof(), challenge, block.getMinerPublicKey());
     }
-
 
 
     public class VdfTask implements Runnable {
@@ -219,15 +235,18 @@ public class BlockchainService {
             blockBeingMined = block;
             byte[] potChallenge = new BigInteger(block.calculateHash())
                     .add(new BigInteger(block.getPosProof().getSlothResult().getHash().toByteArray())).toByteArray();
-            int iterations = (int)Math.round(VDF_ITERATIONS * posService.proofQuality(block.getPosProof(),block.getMinerPublicKey()));
+            int iterations = (int) Math.round(VDF_ITERATIONS * posService.proofQuality(block.getPosProof(), block.getMinerPublicKey()));
             ProofOfTime pot = vdf.eval(potChallenge, iterations);
             block.addProofOfTime(pot);
-            synchronized (finalizedBlockChain){
+            blockProcessingLock.lock();
+            try {
                 blockBeingMined = null;
-                net.broadcastBlock(block);
-                receiveBlock(block);
-
+                currentVdfTask = null;
+            } finally {
+                blockProcessingLock.unlock();
             }
+            net.broadcastBlock(block);
+            receiveBlock(block);
 
             //BROADCAST BLOCK
         }

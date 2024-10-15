@@ -6,6 +6,7 @@ import fcul.ArchiveMint.model.Block;
 import fcul.ArchiveMint.utils.Utils;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -18,10 +19,11 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static fcul.ArchiveMint.service.BlockchainService.myExecutor;
+
 
 @Service
 @Data
+@Slf4j
 public class NetworkService {
 
     @Autowired
@@ -31,12 +33,11 @@ public class NetworkService {
     @Value("${server.port}")
     private String ownPort;
     private final Gson gson = new Gson();
-
     @PostConstruct
     public void init() {
         peers = nodeConfig.getSeedNodes();
     }
-
+    public ExecutorService networkExecutor = Executors.newVirtualThreadPerTaskExecutor();
     public void broadcastBlock(Block block) {
         String serializedBlock = Utils.serializeBlock(block);
         for (String peer : peers) {
@@ -44,12 +45,11 @@ public class NetworkService {
             if (port == Integer.parseInt(ownPort)) {
                 continue;
             }
-            myExecutor.execute(() -> sendSynctoPeer(peer, serializedBlock));
+            networkExecutor.execute(() -> sendBlockToPeer(peer, serializedBlock));
         }
     }
 
-
-    public void sendSynctoPeer(String peer, String block) {
+    public void sendBlockToPeer(String peer, String block) {
         try {
             ResponseEntity<?> response = restTemplate.exchange(peer + "/blockchain/sendBlock", HttpMethod.POST,
                     new HttpEntity<>(block), String.class);

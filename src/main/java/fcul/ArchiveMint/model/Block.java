@@ -1,11 +1,14 @@
 package fcul.ArchiveMint.model;
 
+import com.google.gson.annotations.Expose;
 import fcul.ArchiveMint.utils.CryptoUtils;
 import fcul.ArchiveMint.utils.PoS;
 import fcul.ArchiveMint.utils.wesolowskiVDF.ProofOfTime;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.apache.commons.codec.binary.Hex;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -24,6 +27,7 @@ public class Block {
     private ProofOfTime potProof;
     private long blockHeight;
     private byte[] minerPublicKey;
+    private byte[] hash;
 
     public void addProofOfTime(ProofOfTime potProof){
         this.potProof = potProof;

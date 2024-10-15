@@ -33,9 +33,6 @@
             <version>2.5.0</version>
         </dependency>
         <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind -->
-
-
-
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
@@ -67,5 +64,4 @@
         </dependency><!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind -->
 
     </dependencies>
-
 </project>
