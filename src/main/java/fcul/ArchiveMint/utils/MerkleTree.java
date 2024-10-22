@@ -24,7 +24,7 @@ public class MerkleTree implements Serializable {
     private MySloth.SlothResult slothResult;
 
 
-    public MerkleTree(byte[] data, int LEAVES,byte[] publicKey) {
+    public MerkleTree(byte[] data, int LEAVES,byte[] publicKey,boolean computeSloth) {
         this.LEAVES = LEAVES;
         List<byte[]> dataLeaves = splintDataInLeaves(data);
         if (dataLeaves.size() != LEAVES ) {
@@ -33,6 +33,10 @@ public class MerkleTree implements Serializable {
         List<MerkleNode> leaves = buildTreeLeavesFromData(dataLeaves);
 
         this.root = buildTreeRoot(leaves);
+
+        if(!computeSloth){
+            return;
+        }
         slothResult = MySloth.sloth(new BigInteger(root.data).add(new BigInteger(publicKey)).toByteArray(),
                 SLOTH_ITERATIONS);
     }

@@ -41,7 +41,7 @@ public class BlockchainService {
     private List<Transaction> pendingTransactions = new ArrayList<>();
 
     private WesolowskiVDF vdf = new WesolowskiVDF();
-    private int VDF_ITERATIONS = 100000;
+    private int VDF_ITERATIONS = 500000;
     private Future<?> currentVdfTask = null;
 
     private byte[] genesisChallenge = Hex.decode("ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb");
@@ -69,13 +69,11 @@ public class BlockchainService {
                 .build();
         genesisBlock.setSignature(CryptoUtils.ecdsaSign(genesisBlock.calculateHash(), keyManager.getPrivateKey()));
         currentVdfTask = vdfExecutor.submit(new VdfTask(genesisBlock));
-/*        VdfTask genesisVdfTask = new VdfTask(genesisBlock);
-        Thread genesisThread = new Thread(genesisVdfTask);
-        genesisThread.start();
-        currentVdfTask = genesisThread;*/
     }
-
-    public void deliverBlock(Block block) {
+    public void processBlock(Block block) {
+        long time = System.currentTimeMillis();
+        block.setHash(null);
+        block.calculateHash();
         blockProcessingLock.lock();
         try {
             if (block.getBlockHeight() == 0 && finalizedBlockChain.size() <= 1) {
@@ -96,6 +94,7 @@ public class BlockchainService {
             }
             lastFinalizedBlock = finalizedBlockChain.get((int) finalizedBlockHeight);
             System.out.println("Finalized block: " + lastFinalizedBlock);
+            //Generate Code to finalize here
             finalizedBlockHeight++;
 
         }
@@ -106,7 +105,7 @@ public class BlockchainService {
     public ResponseEntity<String> receiveBlock(Block block) {
        /* Thread t = new Thread(() -> deliverBlock(block));
         t.start();*/
-        processingExecutor.submit(() -> deliverBlock(block));
+        processingExecutor.submit(() -> processBlock(block));
         return ResponseEntity.ok("Block received");
     }
 
@@ -139,6 +138,7 @@ public class BlockchainService {
                             .compareTo(new BigInteger(blockBeingMined.calculateHash())) <= 0) {
                         return;
                     }
+
                 }
                 finalizedBlockChain.add(block);
                 extendBlock(block);
@@ -162,14 +162,12 @@ public class BlockchainService {
                     .minerPublicKey(keyManager.getPublicKey().getEncoded())
                     .build();
             block.setSignature(CryptoUtils.ecdsaSign(block.calculateHash(), keyManager.getPrivateKey()));
-
+            long time = System.currentTimeMillis();
             currentVdfTask = vdfExecutor.submit(new VdfTask(block));
+
         } catch (Exception e) {
             log.error("Error extending block: " + e.getMessage());
         }
-/*        Thread vdfThread = new Thread(new VdfTask(block));
-        vdfThread.start();
-        currentVdfTask = vdfThread;*/
     }
 
 
@@ -223,7 +221,7 @@ public class BlockchainService {
 
     public class VdfTask implements Runnable {
 
-        private Block block;
+        private final Block block;
 
         public VdfTask(Block block) {
             this.block = block;

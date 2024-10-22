@@ -34,6 +34,9 @@ public class Block {
     }
 
     public byte[] calculateHash() {
+        if(hash != null){
+            return this.hash;
+        }
         BigInteger hash = BigInteger.ZERO;
         hash = hash.add(new BigInteger(this.previousHash));
         hash = hash.add(new BigInteger(this.timeStamp.getBytes()));
@@ -42,7 +45,8 @@ public class Block {
         hash = hash.add(BigInteger.valueOf(this.blockHeight));
         hash = hash.add(new BigInteger(minerPublicKey));
         hash = hash.add(posProof.getSlothResult().getHash());
-        return CryptoUtils.hash256(hash.toByteArray());
+        this.hash =  CryptoUtils.hash256(hash.toByteArray());
+        return this.hash;
     }
 
 

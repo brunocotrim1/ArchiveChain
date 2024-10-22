@@ -130,7 +130,7 @@ public class MySloth {
         for(int i = 0; i < 1; i++){
             byte[] data = new byte[128];
             System.out.println("Data: 0x" + new BigInteger(data).toString(16));
-            int iterations = 900000;
+            int iterations = 10000;
             long time = System.currentTimeMillis();
             SlothResult result = sloth(data,iterations);
             System.out.println("Time too generate: " + (System.currentTimeMillis() - time) + "ms");

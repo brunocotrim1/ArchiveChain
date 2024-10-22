@@ -50,7 +50,7 @@ public class PoS {
                 if (bytesRead < CHUNK_SIZE) {
                     padding(buffer, bytesRead);
                 }
-                MerkleTree tree = new MerkleTree(buffer, LEAVES_POS,publicKey);
+                MerkleTree tree = new MerkleTree(buffer, LEAVES_POS,publicKey,true);
                 //Use the Hash(sloth+root) as the Nonce
                 String fileName = destinationFolder + "/" + chunkCount + "_" + Hex.encodeHexString(tree.getSlothNonce(publicKey));
                 writeMerkleTreeToFile(tree, fileName);
@@ -206,7 +206,7 @@ public class PoS {
             byteData.addAll(dataLeaves);
         }
         byte[] combined = combineByteArrays(byteData);
-        MerkleTree tree = new MerkleTree(combined, LEAVES_POS,publicKey);
+        MerkleTree tree = new MerkleTree(combined, LEAVES_POS,publicKey,false);
         List<byte[]> proof = tree.getProofChallenge(challenge);
         return new PosProof(tree.getSlothResult(), proof, challenge);
         //unpadding(desinationFolder + filename);

@@ -28,16 +28,19 @@ public class NetworkService {
 
     @Autowired
     private NodeConfig nodeConfig;
-    private List<String> peers;
-    private RestTemplate restTemplate = new RestTemplate();
     @Value("${server.port}")
     private String ownPort;
-    private final Gson gson = new Gson();
+
+
     @PostConstruct
     public void init() {
         peers = nodeConfig.getSeedNodes();
     }
+
     public ExecutorService networkExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private List<String> peers;
+    private RestTemplate restTemplate = new RestTemplate();
+
     public void broadcastBlock(Block block) {
         String serializedBlock = Utils.serializeBlock(block);
         for (String peer : peers) {
@@ -54,7 +57,7 @@ public class NetworkService {
             ResponseEntity<?> response = restTemplate.exchange(peer + "/blockchain/sendBlock", HttpMethod.POST,
                     new HttpEntity<>(block), String.class);
             //restTemplate.postForObject(peer + "/blockchain/sendBlock", block, Block.class);
-        } catch (Exception e) {
+        } catch (Exception ignored) {
         }
     }
 }
