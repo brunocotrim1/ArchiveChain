@@ -1,6 +1,5 @@
 package fcul.ArchiveMint.model;
 
-import com.google.gson.annotations.Expose;
 import fcul.ArchiveMint.utils.CryptoUtils;
 import fcul.ArchiveMint.utils.PoS;
 import fcul.ArchiveMint.utils.wesolowskiVDF.ProofOfTime;
@@ -25,7 +24,7 @@ public class Block {
     private byte[] signature;
     private PoS.PosProof posProof;
     private ProofOfTime potProof;
-    private long blockHeight;
+    private long height;
     private byte[] minerPublicKey;
     private byte[] hash;
 
@@ -42,7 +41,7 @@ public class Block {
         hash = hash.add(new BigInteger(this.timeStamp.getBytes()));
         //INCLUIR TRANSACTIONS
         hash = hash.add(new BigInteger(this.timeStamp.getBytes()));
-        hash = hash.add(BigInteger.valueOf(this.blockHeight));
+        hash = hash.add(BigInteger.valueOf(this.height));
         hash = hash.add(new BigInteger(minerPublicKey));
         hash = hash.add(posProof.getSlothResult().getHash());
         this.hash =  CryptoUtils.hash256(hash.toByteArray());
@@ -67,8 +66,9 @@ public class Block {
     public String toString(){
         return "Block{" +
                 "previousHash=" + Hex.encodeHexString(previousHash) +
-                ", blockHeight=" + blockHeight +
+                ", blockHeight=" + height +
                 ", hash=" + Hex.encodeHexString(calculateHash()) +
+                ", minerPublicKey=" + Hex.encodeHexString(CryptoUtils.hash256(minerPublicKey)) +
                 ", quality=" + PoS.proofQuality(posProof,posProof.getChallenge(),minerPublicKey)+
                 '}';
     }

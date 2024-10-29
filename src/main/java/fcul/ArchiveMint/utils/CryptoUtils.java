@@ -1,5 +1,6 @@
 package fcul.ArchiveMint.utils;
 
+import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -23,6 +24,10 @@ public class CryptoUtils {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static int compareTo(byte [] a, byte [] b){
+        return new BigInteger(a).compareTo(new BigInteger(b));
     }
 
     public static boolean ecdsaVerify(byte[] signature, byte[] data, byte[] publicKey) {

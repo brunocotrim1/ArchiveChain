@@ -42,4 +42,5 @@ public class NodeConfig {
     private String storagePath;
     private String filesToPlotPath;
     private List<String> seedNodes;
+    private boolean timelord;
 }

@@ -1,7 +1,7 @@
 spring:
   threads:
     virtual:
-      enabled: true
+      enabled: false
 
 app:
   storagePath: ./nodes/${app.id}
