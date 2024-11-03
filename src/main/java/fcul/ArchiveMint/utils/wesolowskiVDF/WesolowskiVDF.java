@@ -37,6 +37,8 @@ public class WesolowskiVDF {
         BigInteger x = new BigInteger(hash(m));
         BigInteger y = x;
         for (int i = 0; i < T; i++) {
+            if(Thread.interrupted())
+                return null;
             y = y.modPow(BigInteger.TWO, N);
         }
         BigInteger l = hashPrime((x.add(y)).toByteArray());

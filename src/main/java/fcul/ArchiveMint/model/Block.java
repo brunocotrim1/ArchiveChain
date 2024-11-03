@@ -27,6 +27,7 @@ public class Block {
     private long height;
     private byte[] minerPublicKey;
     private byte[] hash;
+    private double quality;
 
     public void addProofOfTime(ProofOfTime potProof){
         this.potProof = potProof;
