@@ -44,7 +44,7 @@ public class BlockchainService2 {
     private List<Transaction> pendingTransactions = new ArrayList<>();
 
     private WesolowskiVDF vdf = new WesolowskiVDF();
-    private int VDF_ITERATIONS = 1000000;
+    private int VDF_ITERATIONS = 500000;
     private Thread currentVdfTask = null;
 
     private byte[] genesisChallenge = Hex.decode("ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb");
@@ -83,8 +83,15 @@ public class BlockchainService2 {
             if (block.getHeight() == 0 && finalizedBlockChain.size() <= 1) {
                 validateGenesisBlock(block);
             } else {
-                timelordAlgorithm(block);
+                if (block.getPotProof() == null){
+                    if(nodeConfig.isTimelord()){
+                        processNonFinalizedBlock(block);
+                    }
+                }else{
+                    timelordAlgorithm(block);
+                }
             }
+            processCache();
             finalizeBlock();
         } finally {
             blockProcessingLock.unlock();
@@ -106,12 +113,77 @@ public class BlockchainService2 {
 
     }
 
+    private void processCache(){
+        if(blockBeingMined == null){
+            return;
+        }
+        if(cacheFutureBlocks.containsKey((int) blockBeingMined.getHeight())){
+            //Reprocess cached blocks at the same height
+            for(Block futureBlock : cacheFutureBlocks.get((int) blockBeingMined.getHeight())){
+                compareAndSwapMinedBlock(futureBlock);
+            }
+            cacheFutureBlocks.remove((int) blockBeingMined.getHeight());
+        }
+    }
+    private void cacheBlock (Block block){
+        if(cacheFutureBlocks.containsKey((int) block.getHeight())){
+            cacheFutureBlocks.get((int) block.getHeight()).add(block);
+        }else{
+            ArrayList<Block> blocks = new ArrayList<>();
+            blocks.add(block);
+            cacheFutureBlocks.put((int) block.getHeight(), blocks);
+        }
+    }
+
+    private void processNonFinalizedBlock(Block block){
+        if(blockBeingMined == null || blockBeingMined.getHeight() != block.getHeight()){
+            cacheBlock(block);
+            return;
+        }
+
+        compareAndSwapMinedBlock(block);
+
+        if(cacheFutureBlocks.containsKey((int) block.getHeight())){
+            //Reprocess cached blocks at the same height
+            for(Block futureBlock : cacheFutureBlocks.get((int) block.getHeight())){
+                compareAndSwapMinedBlock(futureBlock);
+            }
+            cacheFutureBlocks.remove((int) block.getHeight());
+        }
+
+    }
+
+    public void compareAndSwapMinedBlock(Block block){
+        if(!validateSignature(block)){
+            return;
+        }
+        Block lastFinalizedBlock = finalizedBlockChain.get(finalizedBlockChain.size() - 1);
+
+        if(!blockIsBetter(block, blockBeingMined)){
+            return;
+        }
+        if(!extendsChain(block, lastFinalizedBlock)){
+            return;
+        }
+        if(!validatePoS(block, lastFinalizedBlock)){
+            return;
+        }
+
+        if(currentVdfTask != null){
+            currentVdfTask.interrupt();
+            currentVdfTask = null;
+        }
+        restartThread(block);
+        //System.out.println("Block swapped non finalized");
+    }
+
 
     public void timelordAlgorithm(Block block) {
         Block lastFinalizedBlock = finalizedBlockChain.get(finalizedBlockChain.size() - 1);
         if (!validateSignature(block)) {
             return;
         }
+
         if (block.getHeight() == lastFinalizedBlock.getHeight()) {
             //Caso de ultimo bloco estar a mesma height do bloco recebido, substituir e extender
             if (!blockIsBetter(block, lastFinalizedBlock)) {
@@ -128,9 +200,19 @@ public class BlockchainService2 {
             }
             finalizedBlockChain.remove(lastFinalizedBlock);
             finalizedBlockChain.add(block);
-            extendFinalizedBlock(block);
+            if(nodeConfig.isTimelord()){
+                extendFinalizedBlock(block);
+            }else{
+                extendNonFinalizedBlock(block);
+            }
         } else if (block.getHeight() == lastFinalizedBlock.getHeight() + 1) {
             //Caso em que recebemos o finalizado mas ainda estamos a minar o proximo
+            if (blockBeingMined != null) {
+                if (!blockIsBetter(block, blockBeingMined)) {
+                    //System.out.println("Block is not better1");
+                    return;
+                }
+            }
             if (!extendsChain(block, lastFinalizedBlock)) {
                 return;
             }
@@ -138,19 +220,18 @@ public class BlockchainService2 {
             if (!validatePoS(block, lastFinalizedBlock)) {
                 return;
             }
-            if (blockBeingMined != null) {
-                if (!blockIsBetter(block, blockBeingMined)) {
-                    //System.out.println("Block is not better1");
-                    return;
-                }
-            }
 
             if (!validatePoT(block)) {
                 return;
             }
             finalizedBlockChain.add(block);
-            extendFinalizedBlock(block);
+            if(nodeConfig.isTimelord()){
+                extendFinalizedBlock(block);
+            }else{
+                extendNonFinalizedBlock(block);
+            }
         }
+
     }
 
     public boolean blockIsBetter(Block block, Block blockToCompare) {
@@ -164,6 +245,28 @@ public class BlockchainService2 {
             return CryptoUtils.compareTo(block.calculateHash(), blockToCompare.calculateHash()) < 0;
         }
         return false;
+    }
+
+    private void extendNonFinalizedBlock(Block blockToExtend){
+        if (currentVdfTask != null) {
+            currentVdfTask.interrupt();
+            currentVdfTask = null;
+        }
+        try{
+            Block block = Block.builder()
+                    .height(blockToExtend.getHeight() + 1)
+                    .previousHash(blockToExtend.calculateHash())
+                    .timeStamp(Instant.now().toString())
+                    .posProof(posService.generatePoSProof(CryptoUtils.hash256(blockToExtend.getPotProof().getProof().toByteArray())))
+                    .minerPublicKey(keyManager.getPublicKey().getEncoded())
+                    .build();
+            block.setSignature(CryptoUtils.ecdsaSign(block.calculateHash(), keyManager.getPrivateKey()));
+            net.broadcastBlock(block);
+        }
+        catch (Exception e){
+            e.printStackTrace();
+            log.error("Error extending block: " + e.getMessage());
+        }
     }
 
     private void extendFinalizedBlock(Block blockToExtend) {
@@ -229,7 +332,6 @@ public class BlockchainService2 {
     private boolean validatePoT(Block block) {
         ProofOfTime pot = block.getPotProof();
         byte[] challenge = new BigInteger(block.calculateHash())
-                .add(new BigInteger(pot.getPublicKeyTimelord()))
                 .add(new BigInteger(block.getPosProof().getSlothResult().getHash().toByteArray())).toByteArray();
         return CryptoUtils.ecdsaVerify(pot.getSignature(), pot.hash(), pot.getPublicKeyTimelord())
                 && vdf.verify(challenge, pot.getT(), pot.getLPrime(), pot.getProof());
@@ -267,11 +369,10 @@ public class BlockchainService2 {
             //log.info("Starting VDF computation for block: " + block);
             blockBeingMined = block;
             byte[] potChallenge = new BigInteger(block.calculateHash())
-                    .add(new BigInteger(keyManager.getPublicKey().getEncoded()))
                     .add(new BigInteger(block.getPosProof().getSlothResult().getHash().toByteArray())).toByteArray();
             int iterations = (int) Math.round(VDF_ITERATIONS * posService.proofQuality(block.getPosProof(), block.getMinerPublicKey()));
             ProofOfTime pot = vdf.eval(potChallenge, iterations);
-            if (pot == null) {
+            if (pot == null || Thread.interrupted()) {
                 return;
             }
             pot.setPublicKeyTimelord(keyManager.getPublicKey().getEncoded());
