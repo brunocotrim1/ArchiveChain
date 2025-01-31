@@ -9,6 +9,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.Comparator;
 
 public class Utils {
     private static final Gson gson = new Gson();
@@ -138,5 +139,17 @@ public class Utils {
     public static byte[] getLastNBytes(byte[] array, int n) {
         // Copy the last 4 bytes from the array
         return Arrays.copyOfRange(array, array.length - n, array.length);
+    }
+    public static void orderFileByName(File[] listOfFiles) {
+        Arrays.sort(listOfFiles, new Comparator<File>() {
+            @Override
+            public int compare(File o1, File o2) {
+                int n1 = Integer.parseInt(o1.getName().split("_")[0]);
+                int n2 = Integer.parseInt(o2.getName().split("_")[0]);
+                if (n1 == n2)
+                    return 0;
+                return n1 < n2 ? -1 : 1;
+            }
+        });
     }
 }

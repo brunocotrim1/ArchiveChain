@@ -5,10 +5,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.apache.commons.codec.binary.Hex;
 
-import java.io.Serializable;
+import java.io.*;
 import java.math.BigInteger;
 import java.nio.ByteOrder;
 import java.util.*;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 //Notes:
 //At the end of construction we encode the tree using SLOTH
@@ -18,31 +20,48 @@ import java.util.*;
 public class MerkleTree implements Serializable {
 
     public static int FANOUT = 2;
-    public int LEAVES;
+    public static int LEAVES = 64;
     private static int SLOTH_ITERATIONS = 20; //45000Approx 1.3ms per Block which matches Chia generation time
     private MerkleNode root;
     private MySloth.SlothResult slothResult;
 
-
-    public MerkleTree(byte[] data, int LEAVES,byte[] publicKey,boolean computeSloth) {
-        this.LEAVES = LEAVES;
+    public MerkleTree(byte[] data, byte[] publicKey, boolean computeSloth) {
         List<byte[]> dataLeaves = splintDataInLeaves(data);
-        if (dataLeaves.size() != LEAVES ) {
+        if (dataLeaves.size() != LEAVES) {
             throw new IllegalArgumentException("Invalid number of leaves");
         }
         List<MerkleNode> leaves = buildTreeLeavesFromData(dataLeaves);
 
         this.root = buildTreeRoot(leaves);
 
-        if(!computeSloth){
+        if (!computeSloth) {
             return;
         }
         slothResult = MySloth.sloth(new BigInteger(root.data).add(new BigInteger(publicKey)).toByteArray(),
                 SLOTH_ITERATIONS);
     }
+    public MerkleTree(byte[] data) {
+        List<byte[]> dataLeaves = splintDataInLeaves(data);
+        if (dataLeaves.size() != LEAVES) {
+            throw new IllegalArgumentException("Invalid number of leaves");
+        }
+        List<MerkleNode> leaves = buildTreeLeavesFromData(dataLeaves);
 
-    public MerkleTree(List<byte[]> data, int LEAVES,byte[] publicKey) {
-        this.LEAVES = LEAVES;
+        this.root = buildTreeRoot(leaves);
+    }
+    public static MerkleTree decompress(List<byte[]> data, int LEAVES, MySloth.SlothResult slothResult) {
+        MerkleTree tree = new MerkleTree();
+        if (data.size() != LEAVES) {
+            throw new IllegalArgumentException("Invalid number of leaves");
+        }
+        List<MerkleNode> leaves = buildTreeLeavesFromData(data);
+
+        tree.setRoot(buildTreeRoot(leaves));
+        tree.setSlothResult(slothResult);
+        return tree;
+    }
+
+    public MerkleTree(List<byte[]> data, byte[] publicKey) {
         if (data.size() != LEAVES) {
             throw new IllegalArgumentException("Invalid number of leaves");
         }
@@ -53,6 +72,7 @@ public class MerkleTree implements Serializable {
         slothResult = MySloth.sloth(new BigInteger(root.data).add(new BigInteger(publicKey)).toByteArray(),
                 SLOTH_ITERATIONS);
     }
+
     @JsonIgnore
     public byte[] getSlothNonce(byte[] publicKey) {
         BigInteger sloth = slothResult.getHash();
@@ -61,8 +81,9 @@ public class MerkleTree implements Serializable {
         //nonce.add(new BigInteger(publicKey));
         return CryptoUtils.hash256(nonce.toByteArray());
     }
+
     @JsonIgnore
-    public static byte[] getSlothNonce(byte[] root, BigInteger sloth,byte[] publicKey) {
+    public static byte[] getSlothNonce(byte[] root, BigInteger sloth, byte[] publicKey) {
         BigInteger rootInt = new BigInteger(root);
         BigInteger nonce = rootInt.add(sloth);
         //nonce.add(new BigInteger(publicKey));
@@ -88,17 +109,16 @@ public class MerkleTree implements Serializable {
     }
 
     public static boolean verifyProof(List<byte[]> proof, byte[] challenge) {
-        int index = new BigInteger(1, challenge).mod(BigInteger.valueOf(64)).intValue();
+        int index = new BigInteger(1, challenge).mod(BigInteger.valueOf(MerkleTree.LEAVES)).intValue();
         int leafHashIndex1 = Utils.byteArrayToInt(Utils.getLastNBytes(proof.get(1), 4), ByteOrder.BIG_ENDIAN);
         int leafHashIndex2 = Utils.byteArrayToInt(Utils.getLastNBytes(proof.get(2), 4), ByteOrder.BIG_ENDIAN);
-        if(leafHashIndex1 != index && leafHashIndex2 != index){
+        if (leafHashIndex1 != index && leafHashIndex2 != index) {
             //The leafHashes contain a suffix of the leaf index, this helps verifying that the targeted inted was respected
             //and also help with second preimage resistance, we just need to verify the suffix of both of the hashes
             return false;
         }
         byte[] root = proof.get(proof.size() - 1);
         byte[] data = CryptoUtils.hash256(proof.get(0));//Possibly exclude data from the proof to save space
-
         byte[] temp = CryptoUtils.hash256(add(proof.get(1), proof.get(2)));
         for (int i = 3; i < proof.size() - 1; i++) {
             temp = CryptoUtils.hash256(add(temp, proof.get(i)));
@@ -222,10 +242,10 @@ public class MerkleTree implements Serializable {
                     right = leaves.get(i + 1);
                 }
                 byte[] hash = null;
-                if(right == null){
+                if (right == null) {
                     hash = CryptoUtils.hash256(left.getData());
                     MerkleNode parent = new MerkleNode(hash, left, null);
-                }else {
+                } else {
                     hash = CryptoUtils.hash256(add(left.getData(), right.getData()));
                 }
                 MerkleNode parent = new MerkleNode(hash, left, right);
@@ -250,7 +270,7 @@ public class MerkleTree implements Serializable {
         for (byte[] d : data) {
             MerkleNode dataNode = new MerkleNode(d);
             byte[] hash = CryptoUtils.hash256(d);
-            hash = Utils.concatenateByteArrays(hash,Utils.intToByteArray(leaf, ByteOrder.BIG_ENDIAN));
+            hash = Utils.concatenateByteArrays(hash, Utils.intToByteArray(leaf, ByteOrder.BIG_ENDIAN));
             //Store data Nodes on the right child node of leaf nodes
             MerkleNode hashNode = new MerkleNode(hash, null, dataNode);
             hashNode.setLeafIndex(leaf);
@@ -381,6 +401,30 @@ public class MerkleTree implements Serializable {
         // Print the last level
         if (levelOutput.length() > 0) {
             System.out.println("Level " + currentLevel + ": " + levelOutput.toString());
+        }
+    }
+    public static MerkleTree readMerkleTreeFromFile(File file){
+        try {
+            GZIPInputStream gzipin = new GZIPInputStream(new FileInputStream(file));
+            ObjectInputStream ois = new ObjectInputStream(gzipin);
+            MerkleTreeCompress tree = (MerkleTreeCompress) ois.readObject();
+            ois.close();
+            gzipin.close();
+            return tree.decompressMerkleTree();
+        } catch (IOException | ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void writeMerkleTreeToFile(MerkleTree tree, String fileName){
+        try {
+            GZIPOutputStream gos = new GZIPOutputStream(new FileOutputStream(fileName));
+            ObjectOutputStream oos = new ObjectOutputStream(gos);
+            oos.writeObject(new MerkleTreeCompress(tree));
+            oos.close();
+            gos.finish();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 

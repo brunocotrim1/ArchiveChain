@@ -75,12 +75,12 @@ public class MySloth {
             y = sqrt_permutation(y, p, e);
         }
 
-        return new SlothResult(y,iterations,p);
+        return new SlothResult(y,iterations);
     }
 
     //Correctly Implemented and extracted from C original Code
     public static boolean verify(SlothResult result, byte[] data) {
-        BigInteger p = result.p;
+        BigInteger p = generatePrime(256);
         BigInteger y = result.hash;
         BigInteger x = new BigInteger(1, hash(data)).mod(p);
 
@@ -116,35 +116,33 @@ public class MySloth {
     public static class SlothResult implements Serializable {
         private BigInteger hash;
         private int iterations;
-        private BigInteger p;
-        public SlothResult(BigInteger h,int iterations,BigInteger p) {
+        //private BigInteger p;
+        public SlothResult(BigInteger h,int iterations) {
             this.hash = h;
             this.iterations = iterations;
-            this.p = p;
+            //this.p = p;
         }
 
     }
 
     public static void main(String[] args) {
         SecureRandom random = new SecureRandom();
-        for(int i = 0; i < 1; i++){
+
+        for (int i = 0; i < 10; i++) {
             byte[] data = new byte[128];
-            System.out.println("Data: 0x" + new BigInteger(data).toString(16));
-            int iterations = 10000;
+            random.nextBytes(data);
+            int iterations = 100;
             long time = System.currentTimeMillis();
-            SlothResult result = sloth(data,iterations);
+            SlothResult result = sloth(data, iterations);
             System.out.println("Time too generate: " + (System.currentTimeMillis() - time) + "ms");
             time = System.currentTimeMillis();
-            System.out.println(verify(result,data));
-            if (!verify(result,data)){
+            System.out.println(verify(result, data));
+            if (!verify(result, data)) {
                 break;
             }
             System.out.println("Time too verify: " + (System.currentTimeMillis() - time) + "ms");
-            System.out.println("Amount of bytes final result: "+result.hash.toByteArray().length);
+            System.out.println("Amount of bytes final result: " + result.hash.toByteArray().length);
             System.out.println("Final Hex hash: 0x" + result.hash.toString(16));
         }
-
-
-
     }
 }

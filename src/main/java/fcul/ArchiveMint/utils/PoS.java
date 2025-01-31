@@ -17,6 +17,9 @@ import java.util.List;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+import static fcul.ArchiveMint.utils.MerkleTree.readMerkleTreeFromFile;
+import static fcul.ArchiveMint.utils.MerkleTree.writeMerkleTreeToFile;
+
 //Notes:
 // We use the sloth+root as the nonce so it enforces an attacker to run the sloth function and encode the merkle tree
 //at the end of each generation.
@@ -24,9 +27,8 @@ import java.util.zip.GZIPOutputStream;
 
 public class PoS {
 
-    private static final int CHUNK_SIZE = 2048;
-    private static final int LEAVES_POS = 64;
-    private static final int byteHashSize = 32;
+    public static final int byteHashSize = 32;
+    public static final int CHUNK_SIZE = MerkleTree.LEAVES * byteHashSize;
 
     private static String IN_PROGRESS = ".INPROGRESS.boolean";
 
@@ -49,8 +51,9 @@ public class PoS {
             while ((bytesRead = fis.read(buffer)) != -1) {
                 if (bytesRead < CHUNK_SIZE) {
                     padding(buffer, bytesRead);
+                    System.out.println("Padding: " + (CHUNK_SIZE - bytesRead) + " bytes");
                 }
-                MerkleTree tree = new MerkleTree(buffer, LEAVES_POS,publicKey,true);
+                MerkleTree tree = new MerkleTree(buffer,publicKey,true);
                 //Use the Hash(sloth+root) as the Nonce
                 String fileName = destinationFolder + "/" + chunkCount + "_" + Hex.encodeHexString(tree.getSlothNonce(publicKey));
                 writeMerkleTreeToFile(tree, fileName);
@@ -114,7 +117,7 @@ public class PoS {
         File folder = new File(plotsFolder);
         File[] listOfFiles = folder.listFiles();
         listOfFiles = removeFile(listOfFiles, ".PoRepTree");
-        orderFileByName(listOfFiles);
+        Utils.orderFileByName(listOfFiles);
 
         try(OutputStream os = new FileOutputStream(desinationFolder + filename)) {
 
@@ -134,25 +137,14 @@ public class PoS {
         }
     }
 
-    private static void padding(byte[] buffer, int bytesRead) {
+    public static void padding(byte[] buffer, int bytesRead) {
         for (int i = bytesRead; i < CHUNK_SIZE; i++) {
             buffer[i] = '\n';
         }
     }
 
 
-    private static void orderFileByName(File[] listOfFiles) {
-        Arrays.sort(listOfFiles, new Comparator<File>() {
-            @Override
-            public int compare(File o1, File o2) {
-                int n1 = Integer.parseInt(o1.getName().split("_")[0]);
-                int n2 = Integer.parseInt(o2.getName().split("_")[0]);
-                if (n1 == n2)
-                    return 0;
-                return n1 < n2 ? -1 : 1;
-            }
-        });
-    }
+
 
     public static PosProof proofOfSpace(byte[] challenge, String plotFolder) {
         try {
@@ -198,7 +190,7 @@ public class PoS {
         File folder = new File(fileFolder);
         File[] listOfFiles = folder.listFiles();
         listOfFiles = removeFile(listOfFiles, ".PoRepTree");
-        orderFileByName(listOfFiles);
+        Utils.orderFileByName(listOfFiles);
         List<byte[]> byteData = new ArrayList<>();
         for (File file : listOfFiles) {
             MerkleTree tree = readMerkleTreeFromFile(file);
@@ -206,7 +198,7 @@ public class PoS {
             byteData.addAll(dataLeaves);
         }
         byte[] combined = combineByteArrays(byteData);
-        MerkleTree tree = new MerkleTree(combined, LEAVES_POS,publicKey,false);
+        MerkleTree tree = new MerkleTree(combined,publicKey,false);
         List<byte[]> proof = tree.getProofChallenge(challenge);
         return new PosProof(tree.getSlothResult(), proof, challenge);
         //unpadding(desinationFolder + filename);
@@ -266,21 +258,20 @@ public class PoS {
 
 
     public static void main(String[] args) throws DecoderException {
-        plot_files("node4/originalFiles/hello.txt", "node4/originalFiles/plots/hello_txt","key".getBytes());
-        plot_files("node4/originalFiles/test2.txt", "node4/originalFiles/plots/test2_txt","key".getBytes());
+        plot_files("PoSTest/relatorio_preliminar.pdf", "PoSTest/plots/relatorio_preliminar.pdf","key".getBytes());
         //plot_files("node4/originalFiles/test_3.txt", "node4/originalFiles/plots/test3_txt");
-        retrieveOriginal("node4/originalFiles/plots/hello_txt", "node4/originalFiles/",
-            "test_retrieveddd.txt");
+        retrieveOriginal("PoSTest/plots/relatorio_preliminar.pdf", "PoSTest/retrieved/",
+            "relatorio_preliminar.pdf");
         byte[] randomChallenge = new byte[32];
         new SecureRandom().nextBytes(randomChallenge);
         //randomChallenge = Hex.decodeHex("13b0625e5cdd421f141752aaa0f1dc23e1154335d10e5ce7b5ee1d4eb9716450");
         System.out.println("Challenge: " + Hex.encodeHexString(randomChallenge));
-        PosProof proof = proofOfSpace(randomChallenge, "node4/originalFiles/plots");
+        PosProof proof = proofOfSpace(randomChallenge, "PoSTest/plots");
         System.out.println("Proof quality: " + proofQuality(proof, randomChallenge,"key".getBytes()));
         System.out.println("Proof valid: " + verifyProof(proof,randomChallenge,"key".getBytes()));
 
-        PosProof poRep = proofOfReplication("node4/originalFiles/plots/hello_txt",randomChallenge,"key".getBytes());
-        System.out.println(MerkleTree.verifyProof(poRep.getProof(), poRep.getChallenge()));
+        //PosProof poRep = proofOfReplication("node4/originalFiles/plots/hello_txt",randomChallenge,"key".getBytes());
+        //System.out.println(MerkleTree.verifyProof(poRep.getProof(), poRep.getChallenge()));
     }
 
     @Getter
@@ -299,28 +290,5 @@ public class PoS {
     }
 
 
-    private static MerkleTree readMerkleTreeFromFile(File file){
-        try {
-            GZIPInputStream gzipin = new GZIPInputStream(new FileInputStream(file));
-            ObjectInputStream ois = new ObjectInputStream(gzipin);
-            MerkleTree tree = (MerkleTree) ois.readObject();
-            ois.close();
-            gzipin.close();
-            return tree;
-        } catch (IOException | ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
-    private static void writeMerkleTreeToFile(MerkleTree tree, String fileName){
-        try {
-            GZIPOutputStream gos = new GZIPOutputStream(new FileOutputStream(fileName));
-            ObjectOutputStream oos = new ObjectOutputStream(gos);
-            oos.writeObject(tree);
-            oos.close();
-            gos.finish();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
 }

@@ -16,14 +16,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import javax.sound.midi.Soundbank;
-import java.lang.reflect.Array;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.locks.ReentrantLock;
 
 @Service
@@ -38,6 +35,8 @@ public class BlockchainService2 {
     NodeConfig nodeConfig;
     @Autowired
     private PosService posService;
+    @Autowired
+    private BlockchainState blockchainState;
 
     private List<Peer> peers = new ArrayList<>();
     private final List<Block> finalizedBlockChain = new ArrayList<>();
@@ -198,8 +197,8 @@ public class BlockchainService2 {
             if (!validatePoT(block)) {
                 return;
             }
-            finalizedBlockChain.remove(lastFinalizedBlock);
-            finalizedBlockChain.add(block);
+
+            swapAndRollBlackBlock(lastFinalizedBlock, block);
             if(nodeConfig.isTimelord()){
                 extendFinalizedBlock(block);
             }else{
@@ -224,7 +223,7 @@ public class BlockchainService2 {
             if (!validatePoT(block)) {
                 return;
             }
-            finalizedBlockChain.add(block);
+            processBlockState(block);
             if(nodeConfig.isTimelord()){
                 extendFinalizedBlock(block);
             }else{
@@ -233,6 +232,21 @@ public class BlockchainService2 {
         }
 
     }
+
+    public void swapAndRollBlackBlock(Block blockRollback, Block newBlock){
+        finalizedBlockChain.remove(blockRollback);
+        //ROLLBACK
+        processBlockState(newBlock);
+    }
+
+    public void processBlockState(Block block){
+        if(blockchainState.processBlockState(block)){
+            finalizedBlockChain.add(block);
+        }
+    }
+
+
+
 
     public boolean blockIsBetter(Block block, Block blockToCompare) {
         double blockQuality = posService.proofQuality(block.getPosProof(), block.getMinerPublicKey());
@@ -313,7 +327,7 @@ public class BlockchainService2 {
         }
         if (validateSignature(block) && validatePoT(block) && validatePoS(block, null)) {
             finalizedBlockChain.clear();
-            finalizedBlockChain.add(block);
+            processBlockState(block);
             extendFinalizedBlock(block);
         }
     }
