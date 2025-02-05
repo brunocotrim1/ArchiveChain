@@ -43,7 +43,7 @@ public class BlockchainService2 {
     private List<Transaction> pendingTransactions = new ArrayList<>();
 
     private WesolowskiVDF vdf = new WesolowskiVDF();
-    private int VDF_ITERATIONS = 500000;
+    private int VDF_ITERATIONS = 250000;
     private Thread currentVdfTask = null;
 
     private byte[] genesisChallenge = Hex.decode("ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb");
@@ -186,18 +186,21 @@ public class BlockchainService2 {
         if (block.getHeight() == lastFinalizedBlock.getHeight()) {
             //Caso de ultimo bloco estar a mesma height do bloco recebido, substituir e extender
             if (!blockIsBetter(block, lastFinalizedBlock)) {
+                System.out.println("Block not better");
                 return;
             }
             if (!(extendsChain(block, finalizedBlockChain.get((int) block.getHeight() - 1))
                     && validatePoS(block, finalizedBlockChain.get((int) block.getHeight() - 1)))) {
-                //System.out.println("Not Extending chain or POS invalid");
+                System.out.println("Not Extending chain or POS invalid");
                 return; //Se nao estender a chain
             }
 
             if (!validatePoT(block)) {
+                System.out.println("Pot invalid");
                 return;
             }
-
+            //IF a new Block is received and it is better than the last finalized block, we swap and extend the new one
+            //Note that we only validate the state but not execute
             swapAndRollBlackBlock(lastFinalizedBlock, block);
             if(nodeConfig.isTimelord()){
                 extendFinalizedBlock(block);
@@ -208,22 +211,27 @@ public class BlockchainService2 {
             //Caso em que recebemos o finalizado mas ainda estamos a minar o proximo
             if (blockBeingMined != null) {
                 if (!blockIsBetter(block, blockBeingMined)) {
-                    //System.out.println("Block is not better1");
+                    System.out.println("Block not better2"+ block.getHeight() + " " + blockBeingMined.getHeight());
                     return;
                 }
             }
             if (!extendsChain(block, lastFinalizedBlock)) {
+                System.out.println("Not Extending chain2");
                 return;
             }
 
             if (!validatePoS(block, lastFinalizedBlock)) {
+                System.out.println("Pos invalid2");
                 return;
             }
 
             if (!validatePoT(block)) {
+                System.out.println("Pot invalid2");
                 return;
             }
-            processBlockState(block);
+            //If a new better block is received we will execute lastFinalizedBlock.getHeight()
+            // and validate the new block without executing it
+            processBlockState(block,lastFinalizedBlock);
             if(nodeConfig.isTimelord()){
                 extendFinalizedBlock(block);
             }else{
@@ -233,15 +241,23 @@ public class BlockchainService2 {
 
     }
 
-    public void swapAndRollBlackBlock(Block blockRollback, Block newBlock){
-        finalizedBlockChain.remove(blockRollback);
-        //ROLLBACK
-        processBlockState(newBlock);
+    public void swapAndRollBlackBlock(Block blockSwapped, Block newBlock){
+        if(blockchainState.validateBlockTransactions(newBlock)){
+            finalizedBlockChain.removeLast();
+            finalizedBlockChain.add(newBlock);
+            String blockHash = Hex.toHexString(newBlock.calculateHash());
+            String blockSwappedHash = Hex.toHexString(blockSwapped.calculateHash());
+            System.out.println("Swapped block: " + blockSwappedHash + " with block: " + blockHash);
+        }
     }
 
-    public void processBlockState(Block block){
-        if(blockchainState.processBlockState(block)){
+    public void processBlockState(Block block,Block toExecute){
+        if(blockchainState.validateBlockTransactions(block)){
             finalizedBlockChain.add(block);
+            if(toExecute != null){
+                System.out.println("Executing block height: " + toExecute.getHeight() + " hash: " + Hex.toHexString(toExecute.calculateHash()));
+                blockchainState.executeBlock(toExecute);
+            }
         }
     }
 
@@ -327,8 +343,12 @@ public class BlockchainService2 {
         }
         if (validateSignature(block) && validatePoT(block) && validatePoS(block, null)) {
             finalizedBlockChain.clear();
-            processBlockState(block);
-            extendFinalizedBlock(block);
+            processBlockState(block,null);
+            if(nodeConfig.isTimelord()) {
+                extendFinalizedBlock(block);
+            }else{
+                extendNonFinalizedBlock(block);
+            }
         }
     }
 
@@ -384,7 +404,7 @@ public class BlockchainService2 {
             blockBeingMined = block;
             byte[] potChallenge = new BigInteger(block.calculateHash())
                     .add(new BigInteger(block.getPosProof().getSlothResult().getHash().toByteArray())).toByteArray();
-            int iterations = (int) Math.round(VDF_ITERATIONS * posService.proofQuality(block.getPosProof(), block.getMinerPublicKey()));
+            int iterations = (int) Math.round(VDF_ITERATIONS / posService.proofQuality(block.getPosProof(), block.getMinerPublicKey()));
             ProofOfTime pot = vdf.eval(potChallenge, iterations);
             if (pot == null || Thread.interrupted()) {
                 return;

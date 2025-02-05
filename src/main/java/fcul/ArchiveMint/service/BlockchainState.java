@@ -7,7 +7,10 @@ import org.springframework.stereotype.Service;
 public class BlockchainState {
 
 
-    public boolean processBlockState(Block block){
+    public boolean validateBlockTransactions(Block block){
+        return true;
+    }
+    public boolean executeBlock(Block block){
         return true;
     }
 }

@@ -1,8 +1,11 @@
 package fcul.ArchiveMint.configuration;
 
+import fcul.ArchiveMint.utils.CryptoUtils;
+import fcul.ArchiveMint.utils.Utils;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.binary.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -26,46 +29,43 @@ public class KeyManager {
     private PrivateKey privateKey;
     @PostConstruct
     public void init() {
-        if(Files.exists(Paths.get(nodeConfig.getStoragePath()+ "/private.key"))){
+        if(Files.exists(Paths.get(nodeConfig.getStoragePath()+ "/mnemonic.txt"))){
             loadKeys();
             return;
         }
-        KeyPairGenerator generator = null;
         //I will use ECDSA algoritmh since it provides similar security to RSA with smaller key size
         try {
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EC");
-            SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
-            keyGen.initialize(256, random);
-            KeyPair pair = keyGen.generateKeyPair();
+            String mnemonic = CryptoUtils.generateMnemonic();
+            KeyPair pair = CryptoUtils.generateKeys(mnemonic);
             try (
-                    FileOutputStream fosPub = new FileOutputStream(nodeConfig.getStoragePath()+ "/public.key");
-                    FileOutputStream fosPriv = new FileOutputStream(nodeConfig.getStoragePath()+ "/private.key")
+                    FileOutputStream fosPub = new FileOutputStream(nodeConfig.getStoragePath()+ "/mnemonic.txt");
 
             ) {
-                fosPub.write(pair.getPublic().getEncoded());
-                fosPriv.write(pair.getPrivate().getEncoded());
+                fosPub.write(mnemonic.getBytes());
                 publicKey = pair.getPublic();
                 privateKey = pair.getPrivate();
+                String address =  Hex.encodeHexString(CryptoUtils.hash256(publicKey.getEncoded()));
+                System.out.println(Utils.GREEN + "Saved Mnemonic: " + mnemonic + Utils.RESET);
+                System.out.println(Utils.GREEN + "address: " + address + Utils.RESET);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     public void loadKeys() {
         try {
-            // Load public key
-            byte[] publicKeyBytes = Files.readAllBytes(Paths.get(nodeConfig.getStoragePath() + "/public.key"));
-            X509EncodedKeySpec publicSpec = new X509EncodedKeySpec(publicKeyBytes);
-            KeyFactory keyFactory = KeyFactory.getInstance("EC");
-            publicKey = keyFactory.generatePublic(publicSpec);
-
-            // Load private key
-            byte[] privateKeyBytes = Files.readAllBytes(Paths.get(nodeConfig.getStoragePath() + "/private.key"));
-            PKCS8EncodedKeySpec privateSpec = new PKCS8EncodedKeySpec(privateKeyBytes);
-            privateKey = keyFactory.generatePrivate(privateSpec);
+            String mnemonic = Files.readString(Paths.get(nodeConfig.getStoragePath() + "/mnemonic.txt"));
+            KeyPair pair = CryptoUtils.generateKeys(mnemonic);
+            publicKey = pair.getPublic();
+            privateKey = pair.getPrivate();
+            String address =  Hex.encodeHexString(CryptoUtils.hash256(publicKey.getEncoded()));
+            System.out.println(Utils.GREEN + "Loaded Mnemonic: " + mnemonic + Utils.RESET);
+            System.out.println(Utils.GREEN + "address: " + address + Utils.RESET);
         } catch (IOException e) {
             throw new RuntimeException("Error loading keys from files", e);
         } catch (Exception e) {

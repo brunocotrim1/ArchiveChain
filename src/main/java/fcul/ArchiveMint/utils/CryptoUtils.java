@@ -56,9 +56,8 @@ public class CryptoUtils {
         return String.join(" ", mnemonicWords);
     }
 
-    public static KeyPair generateClientKeys(){
+    public static KeyPair generateKeys(String mnemonic){
         try {
-            String mnemonic = generateMnemonic();
             byte[] seed = mnemonic.getBytes();
             SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
             random.setSeed(seed);  // Provide the custom seed

@@ -12,6 +12,10 @@ import java.util.Arrays;
 import java.util.Comparator;
 
 public class Utils {
+    public static String RESET = "\u001B[0m";
+    public static String RED = "\u001B[31m";
+    public static String GREEN = "\u001B[32m";
+    public static String YELLOW = "\u001B[33m";
     private static final Gson gson = new Gson();
     public static void removeFolderAndRecreate(String folder){
         File file = new File(folder);
