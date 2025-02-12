@@ -3,8 +3,9 @@ package fcul.ArchiveMint.service;
 import fcul.ArchiveMint.configuration.KeyManager;
 import fcul.ArchiveMint.configuration.NodeConfig;
 import fcul.ArchiveMint.model.Block;
+import fcul.ArchiveMint.model.Coin;
 import fcul.ArchiveMint.model.Peer;
-import fcul.ArchiveMint.model.Transaction;
+import fcul.ArchiveMint.model.transactions.Transaction;
 import fcul.ArchiveMint.utils.CryptoUtils;
 import fcul.ArchiveMint.utils.PoS;
 import fcul.ArchiveMint.utils.wesolowskiVDF.ProofOfTime;
@@ -49,6 +50,7 @@ public class BlockchainService2 {
     private byte[] genesisChallenge = Hex.decode("ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb");
     private Block blockBeingMined = null;
     private long finalizedBlockHeight = 0;
+    private long lastExecutedBlockHeight = 0;
     private Block lastFinalizedBlock = null;
     public static ExecutorService processingExecutor = Executors.newVirtualThreadPerTaskExecutor();
     private final ReentrantLock blockProcessingLock = new ReentrantLock();
@@ -75,7 +77,7 @@ public class BlockchainService2 {
     }
 
     public void processBlock(Block block) {
-        block.setHash(null);
+        block.setHash(null);//To clear the hashField of the received block
         block.calculateHash();
         blockProcessingLock.lock();
         try {
@@ -104,7 +106,7 @@ public class BlockchainService2 {
                 return;
             }
             lastFinalizedBlock = finalizedBlockChain.get((int) finalizedBlockHeight);
-            System.out.println("Finalized block: " + lastFinalizedBlock);
+            //System.out.println("Finalized block: " + lastFinalizedBlock);
             //Generate Code to finalize here
             finalizedBlockHeight++;
 
@@ -167,7 +169,9 @@ public class BlockchainService2 {
         if(!validatePoS(block, lastFinalizedBlock)){
             return;
         }
-
+        if(!blockchainState.validateBlockTransactions(block)){
+            return;
+        }
         if(currentVdfTask != null){
             currentVdfTask.interrupt();
             currentVdfTask = null;
@@ -211,7 +215,7 @@ public class BlockchainService2 {
             //Caso em que recebemos o finalizado mas ainda estamos a minar o proximo
             if (blockBeingMined != null) {
                 if (!blockIsBetter(block, blockBeingMined)) {
-                    System.out.println("Block not better2"+ block.getHeight() + " " + blockBeingMined.getHeight());
+                    //System.out.println("Block not better2"+ block.getHeight() + " " + blockBeingMined.getHeight());
                     return;
                 }
             }
@@ -242,22 +246,53 @@ public class BlockchainService2 {
     }
 
     public void swapAndRollBlackBlock(Block blockSwapped, Block newBlock){
-        if(blockchainState.validateBlockTransactions(newBlock)){
+
+        if(lastExecutedBlockHeight == newBlock.getHeight()){
+            //When the last executed block is equal to the new block we need to validate the block with the state
+            // previous to this level execution, if this one is valid we can swap the blocks roll back the state
+            // and execute again
+            if(!blockchainState.validateBlockWithRollback(newBlock)){
+                return;
+            }
+            blockchainState.rollBackBlock(blockSwapped);
+            finalizedBlockChain.removeLast();
+            finalizedBlockChain.add(newBlock);
+
+
+            String blockHash = Hex.toHexString(newBlock.calculateHash());
+            String blockSwappedHash = Hex.toHexString(blockSwapped.calculateHash());
+            System.out.println("Swapped block: " + blockSwappedHash + " with block: " + blockHash);
+        }else{
+            //If the last executed block is not the same as the new block we can just swap the blocks
             finalizedBlockChain.removeLast();
             finalizedBlockChain.add(newBlock);
             String blockHash = Hex.toHexString(newBlock.calculateHash());
             String blockSwappedHash = Hex.toHexString(blockSwapped.calculateHash());
-            System.out.println("Swapped block: " + blockSwappedHash + " with block: " + blockHash);
+            System.out.println("Swapped block2: " + blockSwappedHash + " with block: " + blockHash);
         }
+        blockchainState.executeBlock(newBlock);
+        lastExecutedBlockHeight = newBlock.getHeight();
+        /*
+        if(blockchainState.validateBlockTransactions(newBlock)){
+            finalizedBlockChain.removeLast();
+            if(lastExecutedBlockHeight == newBlock.getHeight()){
+                blockchainState.rollBackBlock(blockSwapped);
+                lastExecutedBlockHeight--;
+            }
+
+        }*/
     }
 
     public void processBlockState(Block block,Block toExecute){
+        if(toExecute != null && toExecute.getHeight() > lastExecutedBlockHeight){
+            //If we receive a block that is higher than the lastExecutedBlockHigh we execute the block
+            //blockchainState.executeBlock(toExecute);
+            //lastExecutedBlockHeight = toExecute.getHeight();
+        }
         if(blockchainState.validateBlockTransactions(block)){
             finalizedBlockChain.add(block);
-            if(toExecute != null){
-                System.out.println("Executing block height: " + toExecute.getHeight() + " hash: " + Hex.toHexString(toExecute.calculateHash()));
-                blockchainState.executeBlock(toExecute);
-            }
+            blockchainState.executeBlock(block);
+            lastExecutedBlockHeight = block.getHeight();
         }
     }
 
@@ -289,6 +324,7 @@ public class BlockchainService2 {
                     .timeStamp(Instant.now().toString())
                     .posProof(posService.generatePoSProof(CryptoUtils.hash256(blockToExtend.getPotProof().getProof().toByteArray())))
                     .minerPublicKey(keyManager.getPublicKey().getEncoded())
+                    .transactions(blockchainState.getValidTransactions())
                     .build();
             block.setSignature(CryptoUtils.ecdsaSign(block.calculateHash(), keyManager.getPrivateKey()));
             net.broadcastBlock(block);
@@ -312,6 +348,7 @@ public class BlockchainService2 {
                     .timeStamp(Instant.now().toString())
                     .posProof(posService.generatePoSProof(CryptoUtils.hash256(blockToExtend.getPotProof().getProof().toByteArray())))
                     .minerPublicKey(keyManager.getPublicKey().getEncoded())
+                    .transactions(blockchainState.getValidTransactions())
                     .build();
             block.setSignature(CryptoUtils.ecdsaSign(block.calculateHash(), keyManager.getPrivateKey()));
             blockBeingMined = block;
@@ -388,6 +425,19 @@ public class BlockchainService2 {
         processingExecutor.submit(() -> processBlock(block));
         return ResponseEntity.ok("Block received");
     }
+
+    public ResponseEntity<String> addTransaction(Transaction transaction) {
+        if(!blockchainState.addTransaction(transaction)){
+            return ResponseEntity.ok("Transaction not added");
+        }
+        net.broadcastTransaction(transaction);
+        return ResponseEntity.ok("Transaction added and broadcasted");
+    }
+
+    public List<Coin> getCoins(String address) {
+        return blockchainState.getCoins(address);
+    }
+
 
 
     public class VdfTask implements Runnable {

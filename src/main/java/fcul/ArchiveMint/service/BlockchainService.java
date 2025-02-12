@@ -1,9 +1,8 @@
 package fcul.ArchiveMint.service;
-
 import fcul.ArchiveMint.configuration.KeyManager;
 import fcul.ArchiveMint.model.Block;
 import fcul.ArchiveMint.model.Peer;
-import fcul.ArchiveMint.model.Transaction;
+import fcul.ArchiveMint.model.transactions.Transaction;
 import fcul.ArchiveMint.utils.CryptoUtils;
 import fcul.ArchiveMint.utils.PoS;
 import fcul.ArchiveMint.utils.wesolowskiVDF.ProofOfTime;
@@ -38,7 +37,6 @@ public class BlockchainService {
 
     private List<Peer> peers = new ArrayList<>();
     private final List<Block> finalizedBlockChain = new ArrayList<>();
-    private List<Transaction> pendingTransactions = new ArrayList<>();
 
     private WesolowskiVDF vdf = new WesolowskiVDF();
     private int VDF_ITERATIONS = 500000;
@@ -72,7 +70,6 @@ public class BlockchainService {
     }
     public void processBlock(Block block) {
         long time = System.currentTimeMillis();
-        block.setHash(null);
         block.calculateHash();
         blockProcessingLock.lock();
         try {
@@ -217,7 +214,6 @@ public class BlockchainService {
         }
         return posService.verifyProof(block.getPosProof(), challenge, block.getMinerPublicKey());
     }
-
 
     public class VdfTask implements Runnable {
 

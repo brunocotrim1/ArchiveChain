@@ -3,15 +3,14 @@ package fcul.ArchiveMint.service;
 import com.google.gson.Gson;
 import fcul.ArchiveMint.configuration.NodeConfig;
 import fcul.ArchiveMint.model.Block;
+import fcul.ArchiveMint.model.transactions.Transaction;
 import fcul.ArchiveMint.utils.Utils;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -42,21 +41,48 @@ public class NetworkService {
     private RestTemplate restTemplate = new RestTemplate();
 
     public void broadcastBlock(Block block) {
-        String serializedBlock = Utils.serializeBlock(block);
         for (String peer : peers) {
             int port = Integer.parseInt(peer.split(":")[2]);
             if (port == Integer.parseInt(ownPort)) {
                 continue;
             }
-            networkExecutor.execute(() -> sendBlockToPeer(peer, serializedBlock));
+            networkExecutor.execute(() -> sendBlockToPeer(peer, block));
         }
     }
 
-    public void sendBlockToPeer(String peer, String block) {
+    public void broadcastTransaction(Transaction transaction){
+        for (String peer : peers) {
+            int port = Integer.parseInt(peer.split(":")[2]);
+            if (port == Integer.parseInt(ownPort)) {
+                continue;
+            }
+            networkExecutor.execute(() -> sendTransactionToPeer(peer, transaction));
+        }
+    }
+
+
+    public void sendBlockToPeer(String peer, Block block) {
         try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<Block> request = new HttpEntity<>(block, headers);
             ResponseEntity<?> response = restTemplate.exchange(peer + "/blockchain/sendBlock", HttpMethod.POST,
-                    new HttpEntity<>(block), String.class);
+                    request, String.class);
             //restTemplate.postForObject(peer + "/blockchain/sendBlock", block, Block.class);
+        } catch (Exception ignored) {
+
+        }
+    }
+
+    public void sendTransactionToPeer(String peer, Transaction transaction){
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<Transaction> request = new HttpEntity<>(transaction, headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(peer + "/blockchain/sendCurrencyTransaction", HttpMethod.POST, request , String.class);
         } catch (Exception ignored) {
         }
     }

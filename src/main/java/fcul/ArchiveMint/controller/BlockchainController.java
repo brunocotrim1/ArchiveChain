@@ -3,6 +3,9 @@ package fcul.ArchiveMint.controller;
 
 import fcul.ArchiveMint.configuration.KeyManager;
 import fcul.ArchiveMint.model.Block;
+import fcul.ArchiveMint.model.Coin;
+import fcul.ArchiveMint.model.transactions.CurrencyTransaction;
+import fcul.ArchiveMint.model.transactions.Transaction;
 import fcul.ArchiveMint.service.BlockchainService;
 import fcul.ArchiveMint.service.BlockchainService2;
 import fcul.ArchiveMint.service.PosService;
@@ -38,9 +41,8 @@ public class BlockchainController {
         return true;
     }
     @PostMapping("/sendBlock")
-    public ResponseEntity<String> sendBlock(@RequestBody String block){
-        Block receivedBlock = Utils.deserializeBlock(block);
-        return blockchainService.receiveBlock(receivedBlock);
+    public ResponseEntity<String> sendBlock(@RequestBody Block block){
+        return blockchainService.receiveBlock(block);
     }
     @GetMapping("/getBlocks")
     public List<String> getBlocks(){
@@ -49,5 +51,14 @@ public class BlockchainController {
     @GetMapping("/publicKey")
     public String publicKey(){
         return  Hex.encodeHexString(CryptoUtils.hash256(keyManager.getPublicKey().getEncoded()));
+    }
+    @PostMapping("/sendCurrencyTransaction")
+    public ResponseEntity<String> sendTransaction(@RequestBody CurrencyTransaction transaction){
+        return blockchainService.addTransaction(transaction);
+    }
+
+    @GetMapping("/getCoins")
+    public List<Coin> getCoins(@RequestParam String address) {
+        return blockchainService.getCoins(address);
     }
 }

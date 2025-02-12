@@ -1,5 +1,6 @@
 package fcul.ArchiveMint.model;
 
+import fcul.ArchiveMint.model.transactions.Transaction;
 import fcul.ArchiveMint.utils.CryptoUtils;
 import fcul.ArchiveMint.utils.PoS;
 import fcul.ArchiveMint.utils.wesolowskiVDF.ProofOfTime;
@@ -41,6 +42,9 @@ public class Block {
         hash = hash.add(new BigInteger(this.previousHash));
         hash = hash.add(new BigInteger(this.timeStamp.getBytes()));
         //INCLUIR TRANSACTIONS
+        for(Transaction transaction : transactions){
+            hash = hash.add(new BigInteger(transaction.getTransactionId().getBytes()));
+        }
         hash = hash.add(new BigInteger(this.timeStamp.getBytes()));
         hash = hash.add(BigInteger.valueOf(this.height));
         hash = hash.add(new BigInteger(minerPublicKey));

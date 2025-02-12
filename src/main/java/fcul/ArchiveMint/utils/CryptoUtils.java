@@ -1,5 +1,7 @@
 package fcul.ArchiveMint.utils;
 
+import org.apache.commons.codec.DecoderException;
+import org.apache.commons.codec.binary.Hex;
 import org.bitcoinj.core.ECKey;
 import org.bitcoinj.crypto.MnemonicCode;
 import org.bitcoinj.wallet.DeterministicKeyChain;
@@ -67,6 +69,11 @@ public class CryptoUtils {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static String getWalletAddress(String publicKey) throws DecoderException {
+        byte [] pubKeyBytes = Hex.decodeHex(publicKey);
+        return Hex.encodeHexString(CryptoUtils.hash256(pubKeyBytes));
     }
 
 

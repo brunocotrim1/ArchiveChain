@@ -1,8 +1,9 @@
 package fcul.ArchiveMint.utils;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import fcul.ArchiveMint.model.Block;
+import fcul.ArchiveMint.model.transactions.Transaction;
 
 import java.io.File;
 import java.math.BigInteger;
@@ -128,6 +129,14 @@ public class Utils {
     public static Block deserializeBlock(String jsonString) {
         try {
             return gson.fromJson(jsonString, Block.class);
+        } catch (Exception e) {
+            e.printStackTrace(); // Handle exception
+            return null;
+        }
+    }
+    public static Transaction deserializeTransaction(String jsonString) {
+        try {
+            return gson.fromJson(jsonString, Transaction.class);
         } catch (Exception e) {
             e.printStackTrace(); // Handle exception
             return null;
