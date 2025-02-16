@@ -41,11 +41,25 @@ public class PoDp {
         Path path = Path.of(filePath);
         ByteArrayOutputStream data = new ByteArrayOutputStream();
         data.write(Files.readAllBytes(path));
-        while(data.size() % CHUNK_SIZE != 0) {
+        while (data.size() % CHUNK_SIZE != 0) {
             data.write('\n');
         }
         MerkleTree merkleTree = new MerkleTree(data.toByteArray());
         return merkleTree.getRoot().getData();
+    }
+
+    public static byte[] merkleRootFromData(byte[] fileData) {
+        try {
+            ByteArrayOutputStream data = new ByteArrayOutputStream();
+            data.write(fileData);
+            while (data.size() % CHUNK_SIZE != 0) {
+                data.write('\n');
+            }
+            MerkleTree merkleTree = new MerkleTree(data.toByteArray());
+            return merkleTree.getRoot().getData();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 
@@ -54,8 +68,8 @@ public class PoDp {
         byte[] challenge = new byte[32];
         random.nextBytes(challenge);
         System.out.println("MerkleRoot from original " + Hex.encodeHexString(merkleRootFromOriginalFile("PoSTest/relatorio_preliminar.pdf")));
-        PDProof pdp = generateProofFromPlots("PoSTest/plots/relatorio_preliminar.pdf",challenge);
-        byte[] root = pdp.getProof().get(pdp.getProof().size()-1);
+        PDProof pdp = generateProofFromPlots("PoSTest/plots/relatorio_preliminar.pdf", challenge);
+        byte[] root = pdp.getProof().get(pdp.getProof().size() - 1);
         System.out.println("MerkleRoot from PoDp " + Hex.encodeHexString(root));
         assert Arrays.equals(root, merkleRootFromOriginalFile("PoSTest/relatorio_preliminar.pdf"));
     }
@@ -65,6 +79,7 @@ public class PoDp {
     @AllArgsConstructor
     public static class PDProof implements Serializable {
         private List<byte[]> proof;
+
         public PDProof(List<byte[]> proof, byte[] challenge) {
             this.proof = proof;
         }

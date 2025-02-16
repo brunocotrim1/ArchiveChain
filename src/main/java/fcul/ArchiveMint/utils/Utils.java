@@ -4,8 +4,11 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import fcul.ArchiveMint.model.Block;
 import fcul.ArchiveMint.model.transactions.Transaction;
+import org.springframework.http.MediaType;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -18,25 +21,27 @@ public class Utils {
     public static String GREEN = "\u001B[32m";
     public static String YELLOW = "\u001B[33m";
     private static final Gson gson = new Gson();
-    public static void removeFolderAndRecreate(String folder){
+
+    public static void removeFolderAndRecreate(String folder) {
         File file = new File(folder);
-        if(file.exists()){
+        if (file.exists()) {
             File[] files = file.listFiles();
-            if(files != null){
-                for(File f: files){
-                    if(f.isDirectory()){
+            if (files != null) {
+                for (File f : files) {
+                    if (f.isDirectory()) {
                         removeFolderAndRecreate(f.getAbsolutePath());
-                    }else{
+                    } else {
                         f.delete();
                     }
                 }
             }
             file.delete();
         }
-        if(!new File(folder).exists()){
+        if (!new File(folder).exists()) {
             new File(folder).mkdirs();
         }
     }
+
     public static double log2(double x) {
         return Math.log(x) / Math.log(2);
     }
@@ -79,6 +84,7 @@ public class Utils {
     public static BigInteger difference(byte[] a, byte[] b) {
         return new BigInteger(a).subtract(new BigInteger(b)).abs();
     }
+
     // Method to calculate bitwise difference
     // Method to calculate bitwise difference between two byte arrays
     public static int bitwiseDifference(byte[] arr1, byte[] arr2) {
@@ -118,6 +124,7 @@ public class Utils {
         buffer.putInt(number);
         return buffer.array();
     }
+
     public static String serializeBlock(Block block) {
         try {
             return gson.toJson(block);
@@ -126,6 +133,7 @@ public class Utils {
             return null;
         }
     }
+
     public static Block deserializeBlock(String jsonString) {
         try {
             return gson.fromJson(jsonString, Block.class);
@@ -134,6 +142,7 @@ public class Utils {
             return null;
         }
     }
+
     public static Transaction deserializeTransaction(String jsonString) {
         try {
             return gson.fromJson(jsonString, Transaction.class);
@@ -149,10 +158,12 @@ public class Utils {
         buffer.order(byteOrder);
         return buffer.getInt();
     }
+
     public static byte[] getLastNBytes(byte[] array, int n) {
         // Copy the last 4 bytes from the array
         return Arrays.copyOfRange(array, array.length - n, array.length);
     }
+
     public static void orderFileByName(File[] listOfFiles) {
         Arrays.sort(listOfFiles, new Comparator<File>() {
             @Override
@@ -164,5 +175,25 @@ public class Utils {
                 return n1 < n2 ? -1 : 1;
             }
         });
+    }
+
+    public static MediaType getMediaTypeForUrl(String fileUrl) {
+        if (fileUrl == null || !fileUrl.contains(".")) {
+            return MediaType.APPLICATION_OCTET_STREAM; // Default binary type
+        }
+
+        String extension = fileUrl.substring(fileUrl.lastIndexOf(".") + 1).toLowerCase();
+
+        return switch (extension) {
+            case "pdf" -> MediaType.APPLICATION_PDF;
+            case "jpg", "jpeg" -> MediaType.IMAGE_JPEG;
+            case "png" -> MediaType.IMAGE_PNG;
+            case "gif" -> MediaType.IMAGE_GIF;
+            case "html", "htm" -> MediaType.TEXT_HTML;
+            case "txt" -> MediaType.TEXT_PLAIN;
+            case "json" -> MediaType.APPLICATION_JSON;
+            case "xml" -> MediaType.APPLICATION_XML;
+            default -> MediaType.APPLICATION_OCTET_STREAM; // Fallback to binary
+        };
     }
 }

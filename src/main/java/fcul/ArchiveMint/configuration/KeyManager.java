@@ -5,6 +5,7 @@ import fcul.ArchiveMint.utils.Utils;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -70,6 +71,15 @@ public class KeyManager {
             throw new RuntimeException("Error loading keys from files", e);
         } catch (Exception e) {
             throw new RuntimeException("Error processing keys", e);
+        }
+    }
+
+    public byte[] getFccnPublicKey(){
+        try {
+            return Hex.decodeHex(nodeConfig.getFccnPublicKey());
+        } catch (DecoderException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
         }
     }
 }

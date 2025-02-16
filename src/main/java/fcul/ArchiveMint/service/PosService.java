@@ -7,6 +7,7 @@ import fcul.ArchiveMint.utils.PoS.PosProof;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
@@ -23,6 +24,18 @@ public class PosService {
         PoS.plot_files(nodeConfig.getFilesToPlotPath() + "/" + fileName,
                 nodeConfig.getStoragePath() + "/" + PLOT_FOLDER +
                         "/" + encodedFileName, keyManager.getPublicKey().getEncoded());
+
+    }
+
+    public void plotFileData(byte[] data, String fileName) throws IOException {
+        String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8);
+        String destinationFolder = nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + encodedFileName;
+        PoS.plot_files(data, destinationFolder, keyManager.getPublicKey().getEncoded());
+    }
+
+    public byte[] retrieveOriginalData(String filename){
+        String encodedFileName = URLEncoder.encode(filename, StandardCharsets.UTF_8);
+        return PoS.retrieveOriginal(nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + encodedFileName);
 
     }
 

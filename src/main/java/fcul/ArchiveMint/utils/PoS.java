@@ -1,6 +1,5 @@
 package fcul.ArchiveMint.utils;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
@@ -12,10 +11,7 @@ import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
 import static fcul.ArchiveMint.utils.MerkleTree.readMerkleTreeFromFile;
 import static fcul.ArchiveMint.utils.MerkleTree.writeMerkleTreeToFile;
@@ -32,7 +28,7 @@ public class PoS {
 
     private static String IN_PROGRESS = ".INPROGRESS.boolean";
 
-    public static void plot_files(String filename, String destinationFolder,byte[] publicKey) {
+    public static void plot_files(String filename, String destinationFolder, byte[] publicKey) {
         System.out.println("Starting Plotting");
         try {
             Utils.removeFolderAndRecreate(destinationFolder);
@@ -53,7 +49,7 @@ public class PoS {
                     padding(buffer, bytesRead);
                     System.out.println("Padding: " + (CHUNK_SIZE - bytesRead) + " bytes");
                 }
-                MerkleTree tree = new MerkleTree(buffer,publicKey,true);
+                MerkleTree tree = new MerkleTree(buffer, publicKey, true);
                 //Use the Hash(sloth+root) as the Nonce
                 String fileName = destinationFolder + "/" + chunkCount + "_" + Hex.encodeHexString(tree.getSlothNonce(publicKey));
                 writeMerkleTreeToFile(tree, fileName);
@@ -69,37 +65,76 @@ public class PoS {
         }
     }
 
-    //This method generates a second MerkleTree composed by the root hashes of the MerkleTrees from file blocks
-    //This way we can not only verify that a specific block belongs to a file, but also challenge specific nodes
-    //that probabilistically allow for PoRep
-    /**
-    public static void generatePoRepMerkleTree(String plotFolder){
-        File folder = new File(plotFolder);
-        File[] directories = folder.listFiles();
-        directories = removeFile(directories, IN_PROGRESS);
-        orderFileByName(directories);
-        List<byte[]> leaveHashes = new ArrayList<>();
-        for (File file : directories) {
-            String indexAndhexHashBlock = file.getName();
-            leaveHashes.add(indexAndhexHashBlock.getBytes());
-        }
-        if(leaveHashes.size() % 2 != 0){
-            leaveHashes.add(new byte[byteHashSize]);
-        }
-        MerkleTree tree = new MerkleTree(leaveHashes, leaveHashes.size());
+    public static void plot_files(byte[] data, String destinationFolder, byte[] publicKey) throws IOException {
+        System.out.println("Starting Plotting");
         try {
-            ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(plotFolder + "/.PoRepTree"));
-            oos.writeObject(tree);
-            oos.close();
+            Utils.removeFolderAndRecreate(destinationFolder);
+            File file = new File(destinationFolder + "/" + IN_PROGRESS);
+            file.createNewFile();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }**/
 
-    private static File[] removeFile(File[] listOfFiles,String filename) {
+        byte[] buffer = new byte[CHUNK_SIZE];
+        int chunkCount = 0;
+        try (ByteArrayInputStream fis = new ByteArrayInputStream(data)) {
+            int bytesRead = 0;
+            long time = System.currentTimeMillis();
+
+            while ((bytesRead = fis.read(buffer)) != -1) {
+                if (bytesRead < CHUNK_SIZE) {
+                    padding(buffer, bytesRead);
+                    System.out.println("Padding: " + (CHUNK_SIZE - bytesRead) + " bytes");
+                }
+                MerkleTree tree = new MerkleTree(buffer, publicKey, true);
+                //Use the Hash(sloth+root) as the Nonce
+                String fileName = destinationFolder + "/" + chunkCount + "_" + Hex.encodeHexString(tree.getSlothNonce(publicKey));
+                writeMerkleTreeToFile(tree, fileName);
+                chunkCount++;
+            }
+            System.out.println("Time to plot: " + (System.currentTimeMillis() - time) + "ms for file " + destinationFolder);
+            time = System.currentTimeMillis();
+            //generatePoRepMerkleTree(destinationFolder);
+            new File(destinationFolder + "/" + IN_PROGRESS).delete();
+            //cSystem.out.println("Time to plot PoRep: " + (System.currentTimeMillis() - time) + "ms for file " + filename);
+        } catch (IOException e) {
+            throw e;
+        }
+    }
+
+    //This method generates a second MerkleTree composed by the root hashes of the MerkleTrees from file blocks
+    //This way we can not only verify that a specific block belongs to a file, but also challenge specific nodes
+    //that probabilistically allow for PoRep
+
+    /**
+     * public static void generatePoRepMerkleTree(String plotFolder){
+     * File folder = new File(plotFolder);
+     * File[] directories = folder.listFiles();
+     * directories = removeFile(directories, IN_PROGRESS);
+     * orderFileByName(directories);
+     * List<byte[]> leaveHashes = new ArrayList<>();
+     * for (File file : directories) {
+     * String indexAndhexHashBlock = file.getName();
+     * leaveHashes.add(indexAndhexHashBlock.getBytes());
+     * }
+     * if(leaveHashes.size() % 2 != 0){
+     * leaveHashes.add(new byte[byteHashSize]);
+     * }
+     * MerkleTree tree = new MerkleTree(leaveHashes, leaveHashes.size());
+     * try {
+     * ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(plotFolder + "/.PoRepTree"));
+     * oos.writeObject(tree);
+     * oos.close();
+     * } catch (IOException e) {
+     * throw new RuntimeException(e);
+     * }
+     * }
+     **/
+
+    private static File[] removeFile(File[] listOfFiles, String filename) {
         List<File> files = new ArrayList<>();
-        for(int i = 0; i < listOfFiles.length; i++){
-            if(listOfFiles[i].getName().equals(filename)){
+        for (int i = 0; i < listOfFiles.length; i++) {
+            if (listOfFiles[i].getName().equals(filename)) {
                 continue;
             }
             files.add(listOfFiles[i]);
@@ -108,7 +143,7 @@ public class PoS {
     }
 
     public static void retrieveOriginal(String plotsFolder, String desinationFolder, String filename) {
-        if(!new File(plotsFolder).exists()){
+        if (!new File(plotsFolder).exists()) {
             throw new RuntimeException("Plot Not Found");
         }
         if (!new File(desinationFolder).exists()) {
@@ -119,7 +154,7 @@ public class PoS {
         listOfFiles = removeFile(listOfFiles, ".PoRepTree");
         Utils.orderFileByName(listOfFiles);
 
-        try(OutputStream os = new FileOutputStream(desinationFolder + filename)) {
+        try (OutputStream os = new FileOutputStream(desinationFolder + filename)) {
 
             for (File file : listOfFiles) {
 
@@ -137,13 +172,38 @@ public class PoS {
         }
     }
 
+    public static byte[] retrieveOriginal(String plotsFolder) {
+        if (!new File(plotsFolder).exists()) {
+            throw new RuntimeException("Plot Not Found: " + plotsFolder);
+        }
+        File folder = new File(plotsFolder);
+        File[] listOfFiles = folder.listFiles();
+        listOfFiles = removeFile(listOfFiles, ".PoRepTree");
+        Utils.orderFileByName(listOfFiles);
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+
+            for (File file : listOfFiles) {
+
+                MerkleTree tree = readMerkleTreeFromFile(file);
+                //boolean validSLoth = MySloth.verify(tree.getSlothResult(), tree.getRoot().getData());
+                List<byte[]> dataLeaves = tree.getAllLeaves(tree.getRoot());
+
+                for (byte[] data : dataLeaves) {
+                    os.write(data);
+                }
+            }
+            return os.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
     public static void padding(byte[] buffer, int bytesRead) {
         for (int i = bytesRead; i < CHUNK_SIZE; i++) {
             buffer[i] = '\n';
         }
     }
-
-
 
 
     public static PosProof proofOfSpace(byte[] challenge, String plotFolder) {
@@ -154,9 +214,9 @@ public class PoS {
             int closestDiff = Integer.MAX_VALUE;
             for (File file : directories) {
                 if (!file.isDirectory()) continue;
-                if(containsINProgress(file.listFiles())) continue;
+                if (containsINProgress(file.listFiles())) continue;
                 for (File plot : file.listFiles()) {
-                    if(plot.getName().equals(".PoRepTree")) continue; // Caso em que nao e um plot file
+                    if (plot.getName().equals(".PoRepTree")) continue; // Caso em que nao e um plot file
                     //For each plot file we read the nonce and calculate the difference with the challenge
                     //if the difference is smaller than the previous smallest difference we
                     // update the closestPlotPath
@@ -168,7 +228,7 @@ public class PoS {
                     }
                 }
             }
-            if(closestPlotPath.equals("")){
+            if (closestPlotPath.equals("")) {
                 throw new RuntimeException("No plots available");
             }
             MerkleTree tree = readMerkleTreeFromFile(new File(closestPlotPath));
@@ -183,8 +243,8 @@ public class PoS {
     //When a node receives a PoRep Challenge, read file from the Encoded Merkle Trees and build a proof of space
     //and Rep on the whole file, this way probablistically we can verify that the file was encoded and stored since
     // only valid miners can generate this tree sufficiently fast
-    public static PosProof proofOfReplication(String fileFolder,byte[] challenge,byte[] publicKey){
-        if(!new File(fileFolder).exists()){
+    public static PosProof proofOfReplication(String fileFolder, byte[] challenge, byte[] publicKey) {
+        if (!new File(fileFolder).exists()) {
             throw new RuntimeException("Plot Not Found");
         }
         File folder = new File(fileFolder);
@@ -198,7 +258,7 @@ public class PoS {
             byteData.addAll(dataLeaves);
         }
         byte[] combined = combineByteArrays(byteData);
-        MerkleTree tree = new MerkleTree(combined,publicKey,false);
+        MerkleTree tree = new MerkleTree(combined, publicKey, false);
         List<byte[]> proof = tree.getProofChallenge(challenge);
         return new PosProof(tree.getSlothResult(), proof, challenge);
         //unpadding(desinationFolder + filename);
@@ -223,6 +283,7 @@ public class PoS {
 
         return combined;
     }
+
     private static boolean containsINProgress(File[] listOfFiles) {
         for (File file : listOfFiles) {
             if (file.getName().equals(IN_PROGRESS)) {
@@ -232,12 +293,12 @@ public class PoS {
         return false;
     }
 
-    public static double proofQuality(PosProof proof, byte[] challenge,byte[]publicKey) {
+    public static double proofQuality(PosProof proof, byte[] challenge, byte[] publicKey) {
         byte[] root = MerkleTree.rootFromProof(proof.getProof());
         double difficulty = 1.0;//Think about this later
         //Difficulty should be between 1 and 0 and the closest it is to zero the more difficult it is
         double maxDifference = challenge.length * 8;
-        double difference = Utils.bitwiseDifference(MerkleTree.getSlothNonce(root, proof.getSlothResult().getHash(),publicKey),
+        double difference = Utils.bitwiseDifference(MerkleTree.getSlothNonce(root, proof.getSlothResult().getHash(), publicKey),
                 challenge);
         double normalizedDifference = 1 - (difference / maxDifference);
         // Adjust for difficulty
@@ -245,8 +306,8 @@ public class PoS {
         return Math.min(1.0, Math.max(0.0, adjustedDifference));
     }
 
-    public static boolean verifyProof(PosProof proof,byte[] challenge,byte[] publicKey) {
-        if(!Arrays.equals(proof.getChallenge(), challenge)){
+    public static boolean verifyProof(PosProof proof, byte[] challenge, byte[] publicKey) {
+        if (!Arrays.equals(proof.getChallenge(), challenge)) {
             return false;
         }
         byte[] root = MerkleTree.rootFromProof(proof.getProof());
@@ -258,17 +319,17 @@ public class PoS {
 
 
     public static void main(String[] args) throws DecoderException {
-        plot_files("PoSTest/relatorio_preliminar.pdf", "PoSTest/plots/relatorio_preliminar.pdf","key".getBytes());
+        plot_files("PoSTest/relatorio_preliminar.pdf", "PoSTest/plots/relatorio_preliminar.pdf", "key".getBytes());
         //plot_files("node4/originalFiles/test_3.txt", "node4/originalFiles/plots/test3_txt");
         retrieveOriginal("PoSTest/plots/relatorio_preliminar.pdf", "PoSTest/retrieved/",
-            "relatorio_preliminar.pdf");
+                "relatorio_preliminar.pdf");
         byte[] randomChallenge = new byte[32];
         new SecureRandom().nextBytes(randomChallenge);
         //randomChallenge = Hex.decodeHex("13b0625e5cdd421f141752aaa0f1dc23e1154335d10e5ce7b5ee1d4eb9716450");
         System.out.println("Challenge: " + Hex.encodeHexString(randomChallenge));
         PosProof proof = proofOfSpace(randomChallenge, "PoSTest/plots");
-        System.out.println("Proof quality: " + proofQuality(proof, randomChallenge,"key".getBytes()));
-        System.out.println("Proof valid: " + verifyProof(proof,randomChallenge,"key".getBytes()));
+        System.out.println("Proof quality: " + proofQuality(proof, randomChallenge, "key".getBytes()));
+        System.out.println("Proof valid: " + verifyProof(proof, randomChallenge, "key".getBytes()));
 
         //PosProof poRep = proofOfReplication("node4/originalFiles/plots/hello_txt",randomChallenge,"key".getBytes());
         //System.out.println(MerkleTree.verifyProof(poRep.getProof(), poRep.getChallenge()));
@@ -288,7 +349,6 @@ public class PoS {
             this.challenge = challenge;
         }
     }
-
 
 
 }

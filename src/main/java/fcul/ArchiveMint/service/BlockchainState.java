@@ -65,7 +65,7 @@ public class BlockchainState {
         while (i < maxAmountTransactions && mempool.size() > 0) {
             Transaction transaction = mempool.poll();
             if (transaction != null) {
-                if (validateTransaction(transaction)) {
+                if (validateTransaction(transaction,coinLogic)) {
                     if(cachedModifications.verifyDoubleSpend(transaction)){
                         validTransactions.add(transaction);
                     }
@@ -77,18 +77,11 @@ public class BlockchainState {
         return validTransactions;
     }
 
-    private boolean validateTransaction(Transaction transaction) {
+
+    private boolean validateTransaction(Transaction transaction,CoinLogic coinLogic) {
         switch (transaction.getType()) {
             case CURRENCY_TRANSACTION:
                 return coinLogic.validTransaction((CurrencyTransaction) transaction);
-            default:
-                return false;
-        }
-    }
-    private boolean validateTransactionRollback(Transaction transaction) {
-        switch (transaction.getType()) {
-            case CURRENCY_TRANSACTION:
-                return backup.getCoinLogic().validTransaction((CurrencyTransaction) transaction);
             default:
                 return false;
         }
@@ -98,7 +91,7 @@ public class BlockchainState {
         CachedModifications cachedModifications = new CachedModifications();
 
         for(Transaction transaction : block.getTransactions()){
-            if(!validateTransaction(transaction)){
+            if(!validateTransaction(transaction,coinLogic)){
                 throw new RuntimeException("Invalid transaction in block");
             }
 
@@ -111,7 +104,7 @@ public class BlockchainState {
         CachedModifications cachedModifications = new CachedModifications();
 
         for(Transaction transaction : block.getTransactions()){
-            if(!validateTransactionRollback(transaction)){
+            if(!validateTransaction(transaction,backup.getCoinLogic())){
                 throw new RuntimeException("Invalid transaction in block rollback");
             }
             cachedModifications.verifyDoubleSpend(transaction);

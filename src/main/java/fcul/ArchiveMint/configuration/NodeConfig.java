@@ -43,4 +43,5 @@ public class NodeConfig {
     private String filesToPlotPath;
     private List<String> seedNodes;
     private boolean timelord;
+    private String fccnPublicKey;
 }

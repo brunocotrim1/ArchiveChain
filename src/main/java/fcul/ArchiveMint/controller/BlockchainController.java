@@ -4,6 +4,7 @@ package fcul.ArchiveMint.controller;
 import fcul.ArchiveMint.configuration.KeyManager;
 import fcul.ArchiveMint.model.Block;
 import fcul.ArchiveMint.model.Coin;
+import fcul.ArchiveMint.model.StorageContract;
 import fcul.ArchiveMint.model.transactions.CurrencyTransaction;
 import fcul.ArchiveMint.model.transactions.Transaction;
 import fcul.ArchiveMint.service.BlockchainService;
@@ -15,6 +16,8 @@ import org.apache.commons.codec.binary.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -61,4 +64,17 @@ public class BlockchainController {
     public List<Coin> getCoins(@RequestParam String address) {
         return blockchainService.getCoins(address);
     }
+
+    @PostMapping(consumes = "multipart/form-data", value = "/archiveFile")
+    public ResponseEntity<String> handleFileUpload(
+            @RequestPart("ArchivalFile") MultipartFile file,
+            @RequestPart("data") StorageContract storageContract) {
+        return blockchainService.archiveFile(file, storageContract);
+    }
+
+    @GetMapping("/download")
+    public ResponseEntity<byte[]> downloadFile(@RequestParam String fileUrl) {
+        return blockchainService.getMockRetrieve(fileUrl);
+    }
+
 }
