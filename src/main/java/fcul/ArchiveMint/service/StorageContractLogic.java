@@ -1,10 +1,12 @@
-package fcul.ArchiveMint.model;
+package fcul.ArchiveMint.service;
 
 import fcul.ArchiveMint.configuration.KeyManager;
-import fcul.ArchiveMint.model.transactions.StorageContractSubmission;
-import fcul.ArchiveMint.model.transactions.Transaction;
-import fcul.ArchiveMint.utils.CryptoUtils;
-import fcul.ArchiveMint.utils.PoDp;
+
+import fcul.ArchiveMintUtils.Model.StorageContract;
+import fcul.ArchiveMintUtils.Model.transactions.StorageContractSubmission;
+import fcul.ArchiveMintUtils.Model.transactions.Transaction;
+import fcul.ArchiveMintUtils.Utils.CryptoUtils;
+import fcul.ArchiveMintUtils.Utils.PoDp;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
 import org.springframework.web.multipart.MultipartFile;

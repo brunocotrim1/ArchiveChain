@@ -2,8 +2,7 @@ package fcul.ArchiveMint.service;
 
 import fcul.ArchiveMint.configuration.KeyManager;
 import fcul.ArchiveMint.configuration.NodeConfig;
-import fcul.ArchiveMint.utils.PoS;
-import fcul.ArchiveMint.utils.PoS.PosProof;
+import fcul.ArchiveMintUtils.Utils.PoS;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -39,15 +38,15 @@ public class PosService {
 
     }
 
-    public PosProof generatePoSProof(byte[] challenge) {
+    public PoS.PosProof generatePoSProof(byte[] challenge) {
         return PoS.proofOfSpace(challenge, nodeConfig.getStoragePath() + "/" + PLOT_FOLDER);
     }
 
-    public double proofQuality(PosProof proof, byte[] publicKey) {
+    public double proofQuality(PoS.PosProof proof, byte[] publicKey) {
         return PoS.proofQuality(proof, proof.getChallenge(), publicKey);
     }
 
-    public boolean verifyProof(PosProof proof, byte[] challenge, byte[] publicKey) {
+    public boolean verifyProof(PoS.PosProof proof, byte[] challenge, byte[] publicKey) {
         return PoS.verifyProof(proof, challenge, publicKey);
     }
 }

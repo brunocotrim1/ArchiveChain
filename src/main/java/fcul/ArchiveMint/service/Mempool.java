@@ -1,6 +1,7 @@
 package fcul.ArchiveMint.service;
 
-import fcul.ArchiveMint.model.transactions.Transaction;
+
+import fcul.ArchiveMintUtils.Model.transactions.Transaction;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;

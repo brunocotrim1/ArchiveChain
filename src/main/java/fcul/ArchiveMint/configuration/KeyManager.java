@@ -1,7 +1,7 @@
 package fcul.ArchiveMint.configuration;
 
-import fcul.ArchiveMint.utils.CryptoUtils;
-import fcul.ArchiveMint.utils.Utils;
+import fcul.ArchiveMintUtils.Utils.CryptoUtils;
+import fcul.ArchiveMintUtils.Utils.Utils;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -14,9 +14,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.security.*;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
+import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 
 @Component
 @Data
@@ -28,9 +29,10 @@ public class KeyManager {
 
     private PublicKey publicKey;
     private PrivateKey privateKey;
+
     @PostConstruct
     public void init() {
-        if(Files.exists(Paths.get(nodeConfig.getStoragePath()+ "/mnemonic.txt"))){
+        if (Files.exists(Paths.get(nodeConfig.getStoragePath() + "/mnemonic.txt"))) {
             loadKeys();
             return;
         }
@@ -39,13 +41,13 @@ public class KeyManager {
             String mnemonic = CryptoUtils.generateMnemonic();
             KeyPair pair = CryptoUtils.generateKeys(mnemonic);
             try (
-                    FileOutputStream fosPub = new FileOutputStream(nodeConfig.getStoragePath()+ "/mnemonic.txt");
+                    FileOutputStream fosPub = new FileOutputStream(nodeConfig.getStoragePath() + "/mnemonic.txt");
 
             ) {
                 fosPub.write(mnemonic.getBytes());
                 publicKey = pair.getPublic();
                 privateKey = pair.getPrivate();
-                String address =  Hex.encodeHexString(CryptoUtils.hash256(publicKey.getEncoded()));
+                String address = Hex.encodeHexString(CryptoUtils.hash256(publicKey.getEncoded()));
                 System.out.println(Utils.GREEN + "Saved Mnemonic: " + mnemonic + Utils.RESET);
                 System.out.println(Utils.GREEN + "address: " + address + Utils.RESET);
             } catch (IOException e) {
@@ -64,7 +66,7 @@ public class KeyManager {
             KeyPair pair = CryptoUtils.generateKeys(mnemonic);
             publicKey = pair.getPublic();
             privateKey = pair.getPrivate();
-            String address =  Hex.encodeHexString(CryptoUtils.hash256(publicKey.getEncoded()));
+            String address = Hex.encodeHexString(CryptoUtils.hash256(publicKey.getEncoded()));
             System.out.println(Utils.GREEN + "Loaded Mnemonic: " + mnemonic + Utils.RESET);
             System.out.println(Utils.GREEN + "address: " + address + Utils.RESET);
         } catch (IOException e) {
@@ -74,7 +76,7 @@ public class KeyManager {
         }
     }
 
-    public byte[] getFccnPublicKey(){
+    public byte[] getFccnPublicKey() {
         try {
             return Hex.decodeHex(nodeConfig.getFccnPublicKey());
         } catch (DecoderException e) {

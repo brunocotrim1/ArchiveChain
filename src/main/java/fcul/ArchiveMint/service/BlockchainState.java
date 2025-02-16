@@ -1,12 +1,11 @@
 package fcul.ArchiveMint.service;
 
 import fcul.ArchiveMint.model.BackupLastExecuted;
-import fcul.ArchiveMint.model.Block;
-import fcul.ArchiveMint.model.CachedModifications;
-import fcul.ArchiveMint.model.Coin;
-import fcul.ArchiveMint.model.transactions.CurrencyTransaction;
-import fcul.ArchiveMint.model.transactions.Transaction;
-import fcul.ArchiveMint.utils.CryptoUtils;
+import fcul.ArchiveMintUtils.Model.Block;
+import fcul.ArchiveMintUtils.Model.Coin;
+import fcul.ArchiveMintUtils.Model.transactions.CurrencyTransaction;
+import fcul.ArchiveMintUtils.Model.transactions.Transaction;
+import fcul.ArchiveMintUtils.Utils.CryptoUtils;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
 import org.springframework.stereotype.Service;

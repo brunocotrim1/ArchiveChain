@@ -1,7 +1,8 @@
-package fcul.ArchiveMint.model;
+package fcul.ArchiveMint.service;
 
-import fcul.ArchiveMint.model.transactions.CurrencyTransaction;
-import fcul.ArchiveMint.model.transactions.Transaction;
+
+import fcul.ArchiveMintUtils.Model.transactions.CurrencyTransaction;
+import fcul.ArchiveMintUtils.Model.transactions.Transaction;
 
 import java.math.BigInteger;
 import java.util.ArrayList;

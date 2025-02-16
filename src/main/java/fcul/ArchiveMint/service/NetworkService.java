@@ -2,9 +2,8 @@ package fcul.ArchiveMint.service;
 
 import com.google.gson.Gson;
 import fcul.ArchiveMint.configuration.NodeConfig;
-import fcul.ArchiveMint.model.Block;
-import fcul.ArchiveMint.model.transactions.Transaction;
-import fcul.ArchiveMint.utils.Utils;
+import fcul.ArchiveMintUtils.Model.Block;
+import fcul.ArchiveMintUtils.Model.transactions.Transaction;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;

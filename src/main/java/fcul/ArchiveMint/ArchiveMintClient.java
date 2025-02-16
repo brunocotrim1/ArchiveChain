@@ -1,12 +1,13 @@
 package fcul.ArchiveMint;
 
-import fcul.ArchiveMint.model.Coin;
-import fcul.ArchiveMint.model.StorageContract;
-import fcul.ArchiveMint.model.transactions.CurrencyTransaction;
-import fcul.ArchiveMint.model.transactions.Transaction;
-import fcul.ArchiveMint.model.transactions.TransactionType;
-import fcul.ArchiveMint.utils.CryptoUtils;
-import fcul.ArchiveMint.utils.PoDp;
+
+import fcul.ArchiveMintUtils.Model.Coin;
+import fcul.ArchiveMintUtils.Model.StorageContract;
+import fcul.ArchiveMintUtils.Model.transactions.CurrencyTransaction;
+import fcul.ArchiveMintUtils.Model.transactions.Transaction;
+import fcul.ArchiveMintUtils.Model.transactions.TransactionType;
+import fcul.ArchiveMintUtils.Utils.CryptoUtils;
+import fcul.ArchiveMintUtils.Utils.PoDp;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
 import org.springframework.core.io.FileSystemResource;

@@ -2,14 +2,18 @@ package fcul.ArchiveMint.service;
 
 import fcul.ArchiveMint.configuration.KeyManager;
 import fcul.ArchiveMint.configuration.NodeConfig;
-import fcul.ArchiveMint.model.*;
-import fcul.ArchiveMint.model.transactions.Transaction;
-import fcul.ArchiveMint.utils.CryptoUtils;
-import fcul.ArchiveMint.utils.PoS;
-import fcul.ArchiveMint.utils.Utils;
-import fcul.ArchiveMint.utils.wesolowskiVDF.ProofOfTime;
-import fcul.ArchiveMint.utils.wesolowskiVDF.WesolowskiVDF;
-import jdk.jshell.execution.Util;
+
+
+import fcul.ArchiveMintUtils.Model.Block;
+import fcul.ArchiveMintUtils.Model.Coin;
+import fcul.ArchiveMintUtils.Model.Peer;
+import fcul.ArchiveMintUtils.Model.StorageContract;
+import fcul.ArchiveMintUtils.Model.transactions.Transaction;
+import fcul.ArchiveMintUtils.Utils.CryptoUtils;
+import fcul.ArchiveMintUtils.Utils.PoS;
+import fcul.ArchiveMintUtils.Utils.Utils;
+import fcul.ArchiveMintUtils.Utils.wesolowskiVDF.ProofOfTime;
+import fcul.ArchiveMintUtils.Utils.wesolowskiVDF.WesolowskiVDF;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.encoders.Hex;

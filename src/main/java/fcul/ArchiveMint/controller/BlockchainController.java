@@ -2,22 +2,18 @@ package fcul.ArchiveMint.controller;
 
 
 import fcul.ArchiveMint.configuration.KeyManager;
-import fcul.ArchiveMint.model.Block;
-import fcul.ArchiveMint.model.Coin;
-import fcul.ArchiveMint.model.StorageContract;
-import fcul.ArchiveMint.model.transactions.CurrencyTransaction;
-import fcul.ArchiveMint.model.transactions.Transaction;
-import fcul.ArchiveMint.service.BlockchainService;
 import fcul.ArchiveMint.service.BlockchainService2;
 import fcul.ArchiveMint.service.PosService;
-import fcul.ArchiveMint.utils.CryptoUtils;
-import fcul.ArchiveMint.utils.Utils;
+import fcul.ArchiveMintUtils.Model.Coin;
+import fcul.ArchiveMintUtils.Model.Block;
+import fcul.ArchiveMintUtils.Model.StorageContract;
+import fcul.ArchiveMintUtils.Model.transactions.CurrencyTransaction;
+import fcul.ArchiveMintUtils.Utils.CryptoUtils;
 import org.apache.commons.codec.binary.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -32,31 +28,36 @@ public class BlockchainController {
     private PosService proofOfSpaceService;
     @Autowired
     private KeyManager keyManager;
+
     @GetMapping("/test")
-    public int test(){
+    public int test() {
         blockchainService.startMining();
         return 1;
     }
 
     @GetMapping("/plotFile")
-    public boolean test(@RequestParam String fileName){
+    public boolean test(@RequestParam String fileName) {
         proofOfSpaceService.plotFile(fileName);
         return true;
     }
+
     @PostMapping("/sendBlock")
-    public ResponseEntity<String> sendBlock(@RequestBody Block block){
+    public ResponseEntity<String> sendBlock(@RequestBody Block block) {
         return blockchainService.receiveBlock(block);
     }
+
     @GetMapping("/getBlocks")
-    public List<String> getBlocks(){
+    public List<String> getBlocks() {
         return blockchainService.getFinalizedBlockChain().stream().map(Block::toString).collect(Collectors.toList());
     }
+
     @GetMapping("/publicKey")
-    public String publicKey(){
-        return  Hex.encodeHexString(CryptoUtils.hash256(keyManager.getPublicKey().getEncoded()));
+    public String publicKey() {
+        return Hex.encodeHexString(CryptoUtils.hash256(keyManager.getPublicKey().getEncoded()));
     }
+
     @PostMapping("/sendCurrencyTransaction")
-    public ResponseEntity<String> sendTransaction(@RequestBody CurrencyTransaction transaction){
+    public ResponseEntity<String> sendTransaction(@RequestBody CurrencyTransaction transaction) {
         return blockchainService.addTransaction(transaction);
     }
 
