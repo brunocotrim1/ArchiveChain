@@ -35,7 +35,7 @@ import java.util.concurrent.locks.ReentrantLock;
 @Service
 @Data
 @Slf4j
-public class BlockchainService2 {
+public class BlockchainService {
     @Autowired
     private NetworkService net;
     @Autowired

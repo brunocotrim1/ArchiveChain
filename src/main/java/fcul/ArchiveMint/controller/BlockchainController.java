@@ -2,10 +2,10 @@ package fcul.ArchiveMint.controller;
 
 
 import fcul.ArchiveMint.configuration.KeyManager;
-import fcul.ArchiveMint.service.BlockchainService2;
+import fcul.ArchiveMint.service.BlockchainService;
 import fcul.ArchiveMint.service.PosService;
-import fcul.ArchiveMintUtils.Model.Coin;
 import fcul.ArchiveMintUtils.Model.Block;
+import fcul.ArchiveMintUtils.Model.Coin;
 import fcul.ArchiveMintUtils.Model.StorageContract;
 import fcul.ArchiveMintUtils.Model.transactions.CurrencyTransaction;
 import fcul.ArchiveMintUtils.Utils.CryptoUtils;
@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 public class BlockchainController {
 
     @Autowired
-    private BlockchainService2 blockchainService;
+    private BlockchainService blockchainService;
     @Autowired
     private PosService proofOfSpaceService;
     @Autowired
