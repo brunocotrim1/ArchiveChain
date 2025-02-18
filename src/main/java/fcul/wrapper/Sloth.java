@@ -1,6 +1,7 @@
 package fcul.wrapper;
 
 
+import org.apache.commons.codec.binary.Hex;
 import org.bouncycastle.util.Arrays;
 
 import java.util.Random;
