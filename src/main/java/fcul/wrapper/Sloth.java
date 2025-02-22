@@ -4,11 +4,13 @@ package fcul.wrapper;
 import org.apache.commons.codec.binary.Hex;
 import org.bouncycastle.util.Arrays;
 
+import java.io.File;
 import java.util.Random;
 
 public class Sloth {
     static {
-        System.load("/Users/brunocotrim/IdeaProjects/ArchiveMint/src/main/native/sloth.so");  // Make sure this matches the name of the compiled Rust library
+        String libPath = new File("src/main/native/sloth.so").getAbsolutePath();
+        System.load(libPath);
     }
 
     // Native method declarations
@@ -19,7 +21,7 @@ public class Sloth {
         Sloth sloth = new Sloth();
 
         // Example usage
-        byte[] piece = new byte[4096];  // Example 4096 byte array
+        byte[] piece = new byte[200];  // Example 4096 byte array
         byte[] iv = new byte[32];       // Example 32 byte IV
         int layers = 200;                // Example number of layers
         Random random = new Random(123);

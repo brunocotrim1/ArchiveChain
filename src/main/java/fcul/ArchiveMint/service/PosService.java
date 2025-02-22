@@ -29,12 +29,12 @@ public class PosService {
     public void plotFileData(byte[] data, String fileName) throws IOException {
         String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8);
         String destinationFolder = nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + encodedFileName;
-        PoS.plot_files(data, destinationFolder, keyManager.getPublicKey().getEncoded());
+        PoS.plot_FilesParallel(data, destinationFolder, keyManager.getPublicKey().getEncoded());
     }
 
     public byte[] retrieveOriginalData(String filename){
         String encodedFileName = URLEncoder.encode(filename, StandardCharsets.UTF_8);
-        return PoS.retrieveOriginal(nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + encodedFileName);
+        return PoS.retrieveOriginalParallel(nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + encodedFileName);
 
     }
 
