@@ -3,67 +3,111 @@ package fcul.wrapper;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.io.ByteArrayOutputStream;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.Mac;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
-import java.util.Base64;
 
 public class AESEncode {
 
-    private static final int AES_KEY_SIZE = 256;
-    private static final int GCM_IV_LENGTH = 12;
-    private static final int GCM_TAG_LENGTH = 128;
+    private static final String AES_ALGORITHM = "AES";
+    private static final String AES_MODE = "AES/CBC/PKCS5Padding"; // CBC mode with PKCS5 padding
+    private static final String HMAC_ALGORITHM = "HmacSHA256";
+    private static final int AES_KEY_SIZE = 256; // AES key size (128, 192, or 256 bits)
+    private static final int HMAC_KEY_SIZE = 256; // HMAC key size
+    private static final String PROVIDER = "SunJCE";
+    private static final int HMAC_SIZE = 32; // HMAC-SHA256 produces a 32-byte hash
 
-    public static byte[] generateRandomIV() {
-        byte[] iv = new byte[GCM_IV_LENGTH];
-        new SecureRandom().nextBytes(iv);
-        return iv;
-    }
-
-    public static SecretKey generateKey() throws Exception {
-        KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
+    // Generate AES key
+    public static SecretKey generateAESKey() throws NoSuchAlgorithmException, NoSuchProviderException {
+        KeyGenerator keyGenerator = KeyGenerator.getInstance(AES_ALGORITHM, PROVIDER);
         keyGenerator.init(AES_KEY_SIZE);
         return keyGenerator.generateKey();
     }
 
-    public static String encrypt(byte[] plaintext, SecretKey key, byte[] iv) throws Exception {
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        GCMParameterSpec parameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH, iv);
-        cipher.init(Cipher.ENCRYPT_MODE, key, parameterSpec);
-        byte[] ciphertext = cipher.doFinal(plaintext);
-        return Base64.getEncoder().encodeToString(ciphertext);
+    // Generate HMAC key
+    public static SecretKey generateHMACKey() throws NoSuchAlgorithmException, NoSuchProviderException {
+        KeyGenerator keyGenerator = KeyGenerator.getInstance(HMAC_ALGORITHM, PROVIDER);
+        keyGenerator.init(HMAC_KEY_SIZE);
+        return keyGenerator.generateKey();
     }
 
-    public static String decrypt(byte[] ciphertext, SecretKey key, byte[] iv) throws Exception {
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        GCMParameterSpec parameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH, iv);
-        cipher.init(Cipher.DECRYPT_MODE, key, parameterSpec);
-        byte[] decodedCiphertext = Base64.getDecoder().decode(ciphertext);
-        byte[] plaintext = cipher.doFinal(decodedCiphertext);
-        return new String(plaintext);
+    // Encrypt data and compute HMAC, then combine into a single byte array
+    public static byte[] encrypt(byte[] data, SecretKey aesKey, SecretKey hmacKey, byte[] iv) throws Exception {
+        // Encrypt the data
+        Cipher cipher = Cipher.getInstance(AES_MODE, PROVIDER);
+        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+        cipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec);
+        byte[] encryptedData = cipher.doFinal(data);
+
+        // Compute HMAC of the encrypted data
+        Mac mac = Mac.getInstance(HMAC_ALGORITHM, PROVIDER);
+        mac.init(hmacKey);
+        byte[] hmac = mac.doFinal(encryptedData);
+
+        // Combine HMAC and encrypted data into a single byte array
+        byte[] combined = new byte[HMAC_SIZE + encryptedData.length];
+        System.arraycopy(hmac, 0, combined, 0, HMAC_SIZE); // Prepend HMAC
+        System.arraycopy(encryptedData, 0, combined, HMAC_SIZE, encryptedData.length); // Append encrypted data
+
+        return combined;
     }
 
-    public static void main(String[] args) throws Exception {
-        String text = "Hello, AES-GCM!";
+    // Decrypt data and validate HMAC
+    public static byte[] decrypt(byte[] combinedData, SecretKey aesKey, SecretKey hmacKey, byte[] iv) throws Exception {
+        // Split the combined data into HMAC and encrypted data
+        byte[] hmac = new byte[HMAC_SIZE];
+        byte[] encryptedData = new byte[combinedData.length - HMAC_SIZE];
+        System.arraycopy(combinedData, 0, hmac, 0, HMAC_SIZE); // Extract HMAC
+        System.arraycopy(combinedData, HMAC_SIZE, encryptedData, 0, encryptedData.length); // Extract encrypted data
 
-        // Generate key and IV
-        SecretKey key = generateKey();
-        byte[] iv = generateRandomIV();
-
-        // Encrypt
-        String encryptedText = encrypt(text.getBytes(), key, iv);
-        System.out.println("Encrypted: " + encryptedText);
-
-        // Decrypt
-        byte[] padded = encryptedText.getBytes();
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        outputStream.write(padded);
-        while(outputStream.size() % 2048 != 0) {
-            outputStream.write(0);
+        // Verify HMAC
+        Mac mac = Mac.getInstance(HMAC_ALGORITHM, PROVIDER);
+        mac.init(hmacKey);
+        byte[] computedHmac = mac.doFinal(encryptedData);
+        if (!java.security.MessageDigest.isEqual(hmac, computedHmac)) {
+            throw new SecurityException("HMAC verification failed: Data may have been tampered with.");
         }
 
-        String decryptedText = decrypt(outputStream.toByteArray(), key, iv);
-        System.out.println("Decrypted: " + decryptedText);
+        // Decrypt the data
+        Cipher cipher = Cipher.getInstance(AES_MODE, PROVIDER);
+        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+        cipher.init(Cipher.DECRYPT_MODE, aesKey, ivSpec);
+        return cipher.doFinal(encryptedData);
+    }
+
+    public static void main(String[] args) {
+        try {
+            // Generate random data and IV
+            byte[] originalData = new byte[1024 * 1024]; // 1 MB of data
+            byte[] iv = new byte[16]; // IV size for AES is 16 bytes (128 bits)
+            new SecureRandom().nextBytes(originalData);
+            new SecureRandom().nextBytes(iv);
+
+            // Generate AES and HMAC keys
+            SecretKey aesKey = generateAESKey();
+            SecretKey hmacKey = generateHMACKey();
+
+            // Encrypt the data
+            long startTime = System.nanoTime();
+            byte[] combinedData = encrypt(originalData, aesKey, hmacKey, iv);
+            System.out.println("Time taken to encrypt and compute HMAC: " + (System.nanoTime() - startTime) / 1000000 + "ms");
+
+            // Decrypt the data
+            long startTime2 = System.nanoTime();
+            byte[] decryptedData = decrypt(combinedData, aesKey, hmacKey, iv);
+            System.out.println("Time taken to decrypt and verify HMAC: " + (System.nanoTime() - startTime2) / 1000000 + "ms");
+
+            // Verify that the decrypted data matches the original data
+            if (java.util.Arrays.equals(originalData, decryptedData)) {
+                System.out.println("Decryption successful: Data matches the original.");
+            } else {
+                System.out.println("Decryption failed: Data does not match the original.");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
