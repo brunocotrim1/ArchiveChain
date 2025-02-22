@@ -25,6 +25,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.*;
@@ -61,6 +62,7 @@ public class BlockchainService {
     private long lastExecutedBlockHeight = 0;
     private Block lastFinalizedBlock = null;
     public static ExecutorService processingExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private ExecutorService plotter = Executors.newSingleThreadExecutor();
     private final ReentrantLock blockProcessingLock = new ReentrantLock();
     private final Map<Integer, ArrayList<Block>> cacheFutureBlocks = new HashMap<>();
     @Autowired
@@ -72,11 +74,18 @@ public class BlockchainService {
             byte[] fileData = file.getInputStream().readAllBytes();
             Transaction transaction = StorageContractLogic.verifyStorageContractBuildTransaction(fileData, contract,
                     keyManager);
-            posService.plotFileData(fileData,contract.getFileUrl());
-            addTransaction(transaction);
+            plotter.submit(() -> {
+                try {
+                    System.out.println("File submitted to plotter");
+                    posService.plotFileData(fileData,contract.getFileUrl());
+                    addTransaction(transaction);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
 
 
-            return ResponseEntity.ok("Block received");
+            return ResponseEntity.ok("FileArchived Successfully");
         } catch (Exception e) {
             e.printStackTrace();
             //Send error
@@ -90,6 +99,7 @@ public class BlockchainService {
         // Set response headers
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(Utils.getMediaTypeForUrl(fileName));
+        headers.setContentLength(fileContent.length);
         if(headers.getContentType() == MediaType.APPLICATION_OCTET_STREAM){
             headers.setContentDispositionFormData("attachment", fileName);
         }

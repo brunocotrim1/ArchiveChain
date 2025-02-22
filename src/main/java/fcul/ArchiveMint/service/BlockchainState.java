@@ -78,11 +78,15 @@ public class BlockchainState {
 
 
     private boolean validateTransaction(Transaction transaction,CoinLogic coinLogic) {
-        switch (transaction.getType()) {
-            case CURRENCY_TRANSACTION:
-                return coinLogic.validTransaction((CurrencyTransaction) transaction);
-            default:
-                return false;
+        try {
+            switch (transaction.getType()) {
+                case CURRENCY_TRANSACTION:
+                    return coinLogic.validTransaction((CurrencyTransaction) transaction);
+                default:
+                    return false;
+            }
+        } catch (Exception e) {
+            return false;
         }
     }
 
