@@ -81,7 +81,7 @@ public class NetworkService {
 
             HttpEntity<Transaction> request = new HttpEntity<>(transaction, headers);
 
-            ResponseEntity<String> response = restTemplate.exchange(peer + "/blockchain/sendCurrencyTransaction", HttpMethod.POST, request , String.class);
+            ResponseEntity<String> response = restTemplate.exchange(peer + "/blockchain/sendTransaction", HttpMethod.POST, request , String.class);
         } catch (Exception ignored) {
         }
     }

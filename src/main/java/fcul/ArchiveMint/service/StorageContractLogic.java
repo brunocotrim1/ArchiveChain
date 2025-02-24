@@ -5,6 +5,7 @@ import fcul.ArchiveMint.configuration.KeyManager;
 import fcul.ArchiveMintUtils.Model.StorageContract;
 import fcul.ArchiveMintUtils.Model.transactions.StorageContractSubmission;
 import fcul.ArchiveMintUtils.Model.transactions.Transaction;
+import fcul.ArchiveMintUtils.Model.transactions.TransactionType;
 import fcul.ArchiveMintUtils.Utils.CryptoUtils;
 import fcul.ArchiveMintUtils.Utils.PoDp;
 import org.apache.commons.codec.DecoderException;
@@ -34,10 +35,12 @@ public class StorageContractLogic {
             byte[] signature = CryptoUtils.ecdsaSign(contract.getHash(),keyManager.getPrivateKey());
             contract.setStorerSignature(Hex.encodeHexString(signature));
             System.out.println("Storage contract signed" + contract);
-            return StorageContractSubmission.builder()
+            StorageContractSubmission storageContract = StorageContractSubmission.builder()
                     .contract(contract)
                     .storerPublicKey(Hex.encodeHexString(keyManager.getPublicKey().getEncoded()))
                     .build();
+            storageContract.setType(TransactionType.STORAGE_CONTRACT_SUBMISSION);
+            return storageContract;
         } catch (DecoderException e) {
             throw new RuntimeException(e);
         }

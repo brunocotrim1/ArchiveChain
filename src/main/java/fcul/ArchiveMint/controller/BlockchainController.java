@@ -8,6 +8,7 @@ import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.Coin;
 import fcul.ArchiveMintUtils.Model.StorageContract;
 import fcul.ArchiveMintUtils.Model.transactions.CurrencyTransaction;
+import fcul.ArchiveMintUtils.Model.transactions.Transaction;
 import fcul.ArchiveMintUtils.Utils.CryptoUtils;
 import org.apache.commons.codec.binary.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,8 +57,8 @@ public class BlockchainController {
         return Hex.encodeHexString(CryptoUtils.hash256(keyManager.getPublicKey().getEncoded()));
     }
 
-    @PostMapping("/sendCurrencyTransaction")
-    public ResponseEntity<String> sendTransaction(@RequestBody CurrencyTransaction transaction) {
+    @PostMapping("/sendTransaction")
+    public ResponseEntity<String> sendTransaction(@RequestBody Transaction transaction) {
         return blockchainService.addTransaction(transaction);
     }
 
