@@ -77,5 +77,9 @@ public class BlockchainController {
     public ResponseEntity<byte[]> downloadFile(@RequestParam String fileUrl) {
         return blockchainService.getMockRetrieve(fileUrl);
     }
+    @GetMapping("/register")
+    public boolean register() {
+        return keyManager.registerFCCN();
+    }
 
 }

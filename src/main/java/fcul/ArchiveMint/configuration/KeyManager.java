@@ -1,5 +1,6 @@
 package fcul.ArchiveMint.configuration;
 
+import fcul.ArchiveMintUtils.Model.PeerRegistration;
 import fcul.ArchiveMintUtils.Utils.CryptoUtils;
 import fcul.ArchiveMintUtils.Utils.Utils;
 import jakarta.annotation.PostConstruct;
@@ -8,7 +9,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -30,10 +36,14 @@ public class KeyManager {
     private PublicKey publicKey;
     private PrivateKey privateKey;
 
+    @Value("${server.port}")
+    private String port;
+
     @PostConstruct
     public void init() {
         if (Files.exists(Paths.get(nodeConfig.getStoragePath() + "/mnemonic.txt"))) {
             loadKeys();
+            registerFCCN();
             return;
         }
         //I will use ECDSA algoritmh since it provides similar security to RSA with smaller key size
@@ -81,6 +91,35 @@ public class KeyManager {
             return Hex.decodeHex(nodeConfig.getFccnPublicKey());
         } catch (DecoderException e) {
             e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    //Method should not be in this class, there should be a controller that calls this but its just for
+    //simplicity of tests
+    public boolean registerFCCN() {
+
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            String url = nodeConfig.getFccnNetworkAddress() + "/storage/registerFarmer";
+            String farmerAddress = nodeConfig.getFarmerAddress() + ":" + port;
+            System.out.println(farmerAddress);
+            PeerRegistration peer = PeerRegistration.builder()
+                    .walletAddress(CryptoUtils.getWalletAddress(Hex.encodeHexString(publicKey.getEncoded())))
+                    .dedicatedStorage(nodeConfig.getDedicatedStorage())
+                    .publicKey(Hex.encodeHexString(publicKey.getEncoded()))
+                    .networkAddress(farmerAddress)
+                    .build();
+
+            String toSign = peer.getNetworkAddress() + peer.getWalletAddress() + peer.getDedicatedStorage();
+            byte[] signature = CryptoUtils.ecdsaSign(toSign.getBytes(), privateKey);
+            peer.setSignature(Hex.encodeHexString(signature));
+            HttpEntity<PeerRegistration> requestEntity = new HttpEntity<>(peer);
+
+            // Send the POST request using RestTemplate
+            ResponseEntity<Boolean> response = restTemplate.exchange(url, HttpMethod.POST, requestEntity, Boolean.class);
+            return Boolean.TRUE.equals(response.getBody());
+        } catch (DecoderException e) {
             throw new RuntimeException(e);
         }
     }

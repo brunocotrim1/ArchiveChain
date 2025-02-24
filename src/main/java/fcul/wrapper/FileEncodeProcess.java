@@ -99,7 +99,7 @@ public class FileEncodeProcess {
         startTime = System.nanoTime();
         byte[] decodedFile = decodeFileVDD(encodedFile, iv, iterationsPerChunk);
         System.out.println("Time taken decode: " + (System.nanoTime() - startTime) / 1000000 + "ms");
-        System.out.println(Arrays.equals(file, decodedFile));
+        System.out.println("Valid VDE: "+Arrays.equals(file, decodedFile));
         //USAR O HASH DO PRIMEIRO CHUNK COMO INPUT IV PARA O SEGUNDO CHUNK
 
         file = Files.readAllBytes(Path.of("TestFiles/relatorio_preliminar.pdf"));

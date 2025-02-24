@@ -23,25 +23,29 @@ import static fcul.ArchiveMint.service.PosService.PLOT_FOLDER;
 public class NodeConfig {
     @PostConstruct
     public void init() {
-        try{
-            if(!Files.exists(Path.of(storagePath))){
+        try {
+            if (!Files.exists(Path.of(storagePath))) {
                 Files.createDirectories(Paths.get(storagePath));
             }
-            if(!Files.exists(Path.of(filesToPlotPath))){
+            if (!Files.exists(Path.of(filesToPlotPath))) {
                 Files.createDirectories(Paths.get(filesToPlotPath));
             }
-            if(!Files.exists(Path.of(storagePath+"/"+ PLOT_FOLDER))){
-                Files.createDirectories(Paths.get(storagePath+"/"+ PLOT_FOLDER));
+            if (!Files.exists(Path.of(storagePath + "/" + PLOT_FOLDER))) {
+                Files.createDirectories(Paths.get(storagePath + "/" + PLOT_FOLDER));
             }
-            log.info("Created Node Folder at "+storagePath);
+            log.info("Created Node Folder at " + storagePath);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
+
     private String id;
     private String storagePath;
     private String filesToPlotPath;
     private List<String> seedNodes;
     private boolean timelord;
     private String fccnPublicKey;
+    private String fccnNetworkAddress;
+    private long dedicatedStorage;
+    private String farmerAddress;
 }

@@ -21,7 +21,7 @@ public class Sloth {
         Sloth sloth = new Sloth();
 
         // Example usage
-        byte[] piece = new byte[200];  // Example 4096 byte array
+        byte[] piece = new byte[4096];  // Example 4096 byte array
         byte[] iv = new byte[32];       // Example 32 byte IV
         int layers = 200;                // Example number of layers
         Random random = new Random(123);

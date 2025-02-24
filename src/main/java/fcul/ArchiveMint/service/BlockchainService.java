@@ -71,12 +71,18 @@ public class BlockchainService {
 
     public ResponseEntity<String> archiveFile(MultipartFile file, StorageContract contract) {
         try {
+
+            long availableSpace = nodeConfig.getDedicatedStorage();
+            if(availableSpace < file.getSize()){
+                return ResponseEntity.status(500).body("Not enough space to store file");
+            }
             byte[] fileData = file.getInputStream().readAllBytes();
             Transaction transaction = StorageContractLogic.verifyStorageContractBuildTransaction(fileData, contract,
                     keyManager);
+            nodeConfig.setDedicatedStorage(availableSpace - file.getSize());
             plotter.submit(() -> {
                 try {
-                    System.out.println("File submitted to plotter");
+                    System.out.println("File submitted to plotter, available space: " + nodeConfig.getDedicatedStorage());
                     posService.plotFileData(fileData,contract.getFileUrl());
                     addTransaction(transaction);
                 } catch (IOException e) {
