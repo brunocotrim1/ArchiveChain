@@ -2,8 +2,6 @@ package fcul.ArchiveMint.service;
 
 import fcul.ArchiveMint.configuration.KeyManager;
 import fcul.ArchiveMint.configuration.NodeConfig;
-
-
 import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.Coin;
 import fcul.ArchiveMintUtils.Model.Peer;
@@ -14,6 +12,7 @@ import fcul.ArchiveMintUtils.Utils.PoS;
 import fcul.ArchiveMintUtils.Utils.Utils;
 import fcul.ArchiveMintUtils.Utils.wesolowskiVDF.ProofOfTime;
 import fcul.ArchiveMintUtils.Utils.wesolowskiVDF.WesolowskiVDF;
+import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.encoders.Hex;
@@ -25,7 +24,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.*;
@@ -46,6 +44,8 @@ public class BlockchainService {
     @Autowired
     private PosService posService;
     @Autowired
+    private PosService proofOfSpaceService;
+
     private BlockchainState blockchainState;
 
     private List<Peer> peers = new ArrayList<>();
@@ -61,55 +61,63 @@ public class BlockchainService {
     private long finalizedBlockHeight = 0;
     private long lastExecutedBlockHeight = 0;
     private Block lastFinalizedBlock = null;
+
     public static ExecutorService processingExecutor = Executors.newVirtualThreadPerTaskExecutor();
     private ExecutorService plotter = Executors.newSingleThreadExecutor();
     private final ReentrantLock blockProcessingLock = new ReentrantLock();
     private final Map<Integer, ArrayList<Block>> cacheFutureBlocks = new HashMap<>();
-    @Autowired
-    private PosService proofOfSpaceService;
+
+    @PostConstruct
+    public void init() {
+        blockchainState = new BlockchainState(keyManager);
+    }
 
 
     public ResponseEntity<String> archiveFile(MultipartFile file, StorageContract contract) {
         try {
 
             long availableSpace = nodeConfig.getDedicatedStorage();
-            if(availableSpace < file.getSize()){
+            if (availableSpace < file.getSize()) {
                 return ResponseEntity.status(500).body("Not enough space to store file");
             }
             byte[] fileData = file.getInputStream().readAllBytes();
-            Transaction transaction = StorageContractLogic.verifyStorageContractBuildTransaction(fileData, contract,
+            Transaction transaction = blockchainState.validateContractSubmission(fileData, contract,
                     keyManager);
+
             nodeConfig.setDedicatedStorage(availableSpace - file.getSize());
+
             plotter.submit(() -> {
                 try {
                     System.out.println("File submitted to plotter, available space: " + nodeConfig.getDedicatedStorage());
-                    posService.plotFileData(fileData,contract.getFileUrl());
+                    posService.plotFileData(fileData, contract.getFileUrl());
                     addTransaction(transaction);
-                } catch (IOException e) {
+                } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
             });
-
-
             return ResponseEntity.ok("FileArchived Successfully");
         } catch (Exception e) {
             e.printStackTrace();
             //Send error
-            return ResponseEntity.status(500).body("Error processing file: "+e.getMessage());
+            return ResponseEntity.status(500).body("Error processing file: " + e.getMessage());
         }
     }
 
     public ResponseEntity<byte[]> getMockRetrieve(String fileName) {
-        // Simulating fetching file content as byte[]
-        byte[] fileContent = posService.retrieveOriginalData(fileName);
-        // Set response headers
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(Utils.getMediaTypeForUrl(fileName));
-        headers.setContentLength(fileContent.length);
-        if(headers.getContentType() == MediaType.APPLICATION_OCTET_STREAM){
-            headers.setContentDispositionFormData("attachment", fileName);
+        try {
+            // Simulating fetching file content as byte[]
+            byte[] fileContent = posService.retrieveOriginalData(fileName);
+            // Set response headers
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(Utils.getMediaTypeForUrl(fileName));
+            headers.setContentLength(fileContent.length);
+            if (headers.getContentType() == MediaType.APPLICATION_OCTET_STREAM) {
+                headers.setContentDispositionFormData("attachment", fileName);
+            }
+            return new ResponseEntity<>(fileContent, headers, HttpStatus.OK);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(("Error retrieving file: " + e.getMessage()).getBytes());
         }
-        return new ResponseEntity<>(fileContent, headers, HttpStatus.OK);
     }
 
 
@@ -117,23 +125,27 @@ public class BlockchainService {
 
 
     public void startMining() {
-        log.info("Starting mining");
-        if (finalizedBlockHeight > 0 || blockBeingMined != null) {
-            return;
-        }
+        try {
+            log.info("Starting mining");
+            if (finalizedBlockHeight > 0 || blockBeingMined != null) {
+                return;
+            }
 
-        Block genesisBlock = Block.builder()
-                .height(0)
-                .previousHash(new byte[32])
-                .timeStamp(Instant.now().toString())
-                .transactions(new ArrayList<>())
-                .posProof(posService.generatePoSProof(genesisChallenge))
-                .potProof(null)
-                .minerPublicKey(keyManager.getPublicKey().getEncoded())
-                .build();
-        genesisBlock.setSignature(CryptoUtils.ecdsaSign(genesisBlock.calculateHash(), keyManager.getPrivateKey()));
-        blockBeingMined = genesisBlock;
-        restartThread(genesisBlock);
+            Block genesisBlock = Block.builder()
+                    .height(0)
+                    .previousHash(new byte[32])
+                    .timeStamp(Instant.now().toString())
+                    .transactions(new ArrayList<>())
+                    .posProof(posService.generatePoSProof(genesisChallenge))
+                    .potProof(null)
+                    .minerPublicKey(keyManager.getPublicKey().getEncoded())
+                    .build();
+            genesisBlock.setSignature(CryptoUtils.ecdsaSign(genesisBlock.calculateHash(), keyManager.getPrivateKey()));
+            blockBeingMined = genesisBlock;
+            restartThread(genesisBlock);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public void processBlock(Block block) {
@@ -237,6 +249,10 @@ public class BlockchainService {
             currentVdfTask.interrupt();
             currentVdfTask = null;
         }
+
+        blockchainState.addTransactions(blockchainState.getCensuredTransactions(blockBeingMined.getTransactions(),
+                block.getTransactions()));
+
         restartThread(block);
         //System.out.println("Block swapped non finalized");
     }
@@ -266,7 +282,10 @@ public class BlockchainService {
             }
             //IF a new Block is received and it is better than the last finalized block, we swap and extend the new one
             //Note that we only validate the state but not execute
-            swapAndRollBlackBlock(lastFinalizedBlock, block);
+            if (!swapAndRollBlackBlock(lastFinalizedBlock, block)) {
+                System.out.println("Failed Validating and executing1");
+                return;
+            }
             if (nodeConfig.isTimelord()) {
                 extendFinalizedBlock(block);
             } else {
@@ -294,9 +313,11 @@ public class BlockchainService {
                 System.out.println("Pot invalid2");
                 return;
             }
-            //If a new better block is received we will execute lastFinalizedBlock.getHeight()
-            // and validate the new block without executing it
-            processBlockState(block, lastFinalizedBlock);
+            //if a new block is received we validate and execute it
+            if (!processBlockState(block)) {
+                System.out.println("Failed Validating and executing2");
+                return;
+            }
             if (nodeConfig.isTimelord()) {
                 extendFinalizedBlock(block);
             } else {
@@ -306,31 +327,38 @@ public class BlockchainService {
 
     }
 
-    public void swapAndRollBlackBlock(Block blockSwapped, Block newBlock) {
+    public boolean swapAndRollBlackBlock(Block blockSwapped, Block newBlock) {
 
         if (lastExecutedBlockHeight == newBlock.getHeight()) {
             //When the last executed block is equal to the new block we need to validate the block with the state
             // previous to this level execution, if this one is valid we can swap the blocks roll back the state
             // and execute again
             if (!blockchainState.validateBlockWithRollback(newBlock)) {
-                return;
+                return false;
             }
             blockchainState.rollBackBlock(blockSwapped);
             finalizedBlockChain.removeLast();
             finalizedBlockChain.add(newBlock);
-
-
             String blockHash = Hex.toHexString(newBlock.calculateHash());
             String blockSwappedHash = Hex.toHexString(blockSwapped.calculateHash());
             System.out.println("Swapped block: " + blockSwappedHash + " with block: " + blockHash);
         } else {
             //If the last executed block is not the same as the new block we can just swap the blocks
+
+            if (!blockchainState.validateBlockTransactions(newBlock)) {
+                return false;
+            }
             finalizedBlockChain.removeLast();
             finalizedBlockChain.add(newBlock);
             String blockHash = Hex.toHexString(newBlock.calculateHash());
             String blockSwappedHash = Hex.toHexString(blockSwapped.calculateHash());
             System.out.println("Swapped block2: " + blockSwappedHash + " with block: " + blockHash);
         }
+
+        //ADD Transactions censured back into the mempool for future processing
+        blockchainState.addTransactions(blockchainState.getCensuredTransactions(blockSwapped.getTransactions(),
+                newBlock.getTransactions()));
+
         blockchainState.executeBlock(newBlock);
         lastExecutedBlockHeight = newBlock.getHeight();
         /*
@@ -342,19 +370,17 @@ public class BlockchainService {
             }
 
         }*/
+        return true;
     }
 
-    public void processBlockState(Block block, Block toExecute) {
-        if (toExecute != null && toExecute.getHeight() > lastExecutedBlockHeight) {
-            //If we receive a block that is higher than the lastExecutedBlockHigh we execute the block
-            //blockchainState.executeBlock(toExecute);
-            //lastExecutedBlockHeight = toExecute.getHeight();
-        }
+    public boolean processBlockState(Block block) {
         if (blockchainState.validateBlockTransactions(block)) {
             finalizedBlockChain.add(block);
             blockchainState.executeBlock(block);
             lastExecutedBlockHeight = block.getHeight();
+            return true;
         }
+        return false;
     }
 
 
@@ -438,7 +464,7 @@ public class BlockchainService {
         }
         if (validateSignature(block) && validatePoT(block) && validatePoS(block, null)) {
             finalizedBlockChain.clear();
-            processBlockState(block, null);
+            processBlockState(block);
             if (nodeConfig.isTimelord()) {
                 extendFinalizedBlock(block);
             } else {
@@ -492,8 +518,12 @@ public class BlockchainService {
         return ResponseEntity.ok("Transaction added and broadcasted");
     }
 
-    public List<Coin> getCoins(String address) {
-        return blockchainState.getCoins(address);
+    public CoinLogic getCoinLogic() {
+        return blockchainState.getCoinLogic();
+    }
+
+    public StorageContractLogic getStorageContractLogic() {
+        return blockchainState.getStorageContractLogic();
     }
 
 

@@ -11,7 +11,6 @@ public class Mempool {
     private final ConcurrentHashMap<String, Transaction> transactionMap = new ConcurrentHashMap<>();
 
     public boolean addTransaction(Transaction transaction) {
-        System.out.println(transaction.getClass());
         if(transactionMap.containsKey(transaction.getTransactionId())) {
             return false;
         }

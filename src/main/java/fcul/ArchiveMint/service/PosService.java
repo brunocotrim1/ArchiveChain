@@ -20,7 +20,7 @@ public class PosService {
     @Autowired
     KeyManager keyManager;
 
-    public void plotFile(String fileName) {
+    public void plotFile(String fileName) throws Exception {
         String normalizedFileName = Normalizer.normalize(fileName, Normalizer.Form.NFC);
         fileName = URLEncoder.encode(normalizedFileName, StandardCharsets.UTF_8);
         PoS.plot_files(nodeConfig.getFilesToPlotPath() + "/" + fileName,
@@ -29,21 +29,21 @@ public class PosService {
 
     }
 
-    public void plotFileData(byte[] data, String fileName) throws IOException {
+    public void plotFileData(byte[] data, String fileName) throws Exception {
         String normalizedFileName = Normalizer.normalize(fileName, Normalizer.Form.NFC);
         fileName = URLEncoder.encode(normalizedFileName, StandardCharsets.UTF_8);
         String destinationFolder = nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + fileName;
         PoS.plot_FilesParallel(data, destinationFolder, keyManager.getPublicKey().getEncoded());
     }
 
-    public byte[] retrieveOriginalData(String filename){
+    public byte[] retrieveOriginalData(String filename) throws Exception {
         //String encodedFileName = URLEncoder.encode(filename, StandardCharsets.UTF_8);
         System.out.println("Retrieving original data from " + nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + filename);
         return PoS.retrieveOriginalParallel(nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + filename);
 
     }
 
-    public PoS.PosProof generatePoSProof(byte[] challenge) {
+    public PoS.PosProof generatePoSProof(byte[] challenge) throws Exception {
         return PoS.proofOfSpace(challenge, nodeConfig.getStoragePath() + "/" + PLOT_FOLDER);
     }
 

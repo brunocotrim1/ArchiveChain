@@ -17,7 +17,7 @@ public class FileEncodeProcess {
     private static Sloth sloth = new Sloth();
     private static int averageTimePerChunkMS = 195; //Tested in McBookM1 and its an hyperparameter of the system 200 iterations
     private static int defaultChunkIteration = 200;
-    private static int goalTimePerChunkMS = 10000;
+    private static int goalTimePerChunkMS = 4000;
 
     public static byte[] encodeFileVDE(byte[] file, byte[] iv, int iterationsPerChunk) {
         try {

@@ -2,7 +2,10 @@ spring:
   threads:
     virtual:
       enabled: false
-
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
 app:
   storagePath: ./nodes/${app.id}
   filesToPlotPath: ./nodes/files

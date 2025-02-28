@@ -7,7 +7,6 @@ import fcul.ArchiveMint.service.PosService;
 import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.Coin;
 import fcul.ArchiveMintUtils.Model.StorageContract;
-import fcul.ArchiveMintUtils.Model.transactions.CurrencyTransaction;
 import fcul.ArchiveMintUtils.Model.transactions.Transaction;
 import fcul.ArchiveMintUtils.Utils.CryptoUtils;
 import org.apache.commons.codec.binary.Hex;
@@ -16,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -37,7 +37,7 @@ public class BlockchainController {
     }
 
     @GetMapping("/plotFile")
-    public boolean test(@RequestParam String fileName) {
+    public boolean test(@RequestParam String fileName) throws Exception {
         proofOfSpaceService.plotFile(fileName);
         return true;
     }
@@ -64,7 +64,12 @@ public class BlockchainController {
 
     @GetMapping("/getCoins")
     public List<Coin> getCoins(@RequestParam String address) {
-        return blockchainService.getCoins(address);
+        return blockchainService.getCoinLogic().getCoins(address);
+    }
+
+    @GetMapping("/getStorageContracts")
+    public HashMap<String, List<StorageContract>> getStorageContracts() {
+        return blockchainService.getStorageContractLogic().getStorageContracts();
     }
 
     @PostMapping(consumes = "multipart/form-data", value = "/archiveFile")
@@ -78,6 +83,7 @@ public class BlockchainController {
     public ResponseEntity<byte[]> downloadFile(@RequestParam String fileUrl) {
         return blockchainService.getMockRetrieve(fileUrl);
     }
+
     @GetMapping("/register")
     public boolean register() {
         return keyManager.registerFCCN();
