@@ -17,7 +17,7 @@ public class FileEncodeProcess {
     private static Sloth sloth = new Sloth();
     private static int averageTimePerChunkMS = 195; //Tested in McBookM1 and its an hyperparameter of the system 200 iterations
     private static int defaultChunkIteration = 200;
-    private static int goalTimePerChunkMS = 4000;
+    private static int goalTimePerChunkMS = 60000;
 
     public static byte[] encodeFileVDE(byte[] file, byte[] iv, int iterationsPerChunk) {
         try {
@@ -39,6 +39,7 @@ public class FileEncodeProcess {
             buffer.putInt(padding);
             return buffer.array();
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException(e);
         }
     }
@@ -89,8 +90,10 @@ public class FileEncodeProcess {
         byte[] file = Files.readAllBytes(Path.of("TestFiles/relatorio_preliminar.pdf"));
         int fileSize = file.length;
         System.out.println("File size: " + fileSize);
+        file = new byte[122880000];//Testing 60sec lowerbound
+        random.nextBytes(file);
         byte[] iv = new byte[32];       // Example 32 byte IV
-        int iterationsPerChunk = iterationsPerChunk(fileSize);              // Example number of layers
+        int iterationsPerChunk = 1;//iterationsPerChunk(fileSize);              // Example number of layers
         System.out.println("Iterations per chunk: " + iterationsPerChunk);
         random.nextBytes(iv);
         long startTime = System.nanoTime();

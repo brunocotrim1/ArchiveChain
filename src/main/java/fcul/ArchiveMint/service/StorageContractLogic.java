@@ -15,7 +15,7 @@ import org.apache.commons.codec.binary.Hex;
 import java.util.*;
 
 public class StorageContractLogic {
-    private static final int BEGINNING_NEXT_WINDOW_DELAY = 4; //4 blocks to start the next window
+    private static final int BEGINNING_NEXT_WINDOW_DELAY = 1; //4 blocks to start the next window
 
     //MAP URL->LIST OF CONTRACTS
     private HashMap<String, List<StorageContract>> storageContracts = new HashMap<>();
@@ -58,7 +58,7 @@ public class StorageContractLogic {
 
         //Creation of a proving window for the contract
         FileProvingWindow window = new FileProvingWindow(contract.getContract(),
-                Hex.encodeHexString(block.getPreviousHash()),
+                Hex.encodeHexString(block.calculateHash()),
                 block.getHeight() + BEGINNING_NEXT_WINDOW_DELAY,
                 block.getHeight() + BEGINNING_NEXT_WINDOW_DELAY +
                         contract.getContract().getProofFrequency());
@@ -131,7 +131,6 @@ public class StorageContractLogic {
                     .storerPublicKey(Hex.encodeHexString(keyManager.getPublicKey().getEncoded()))
                     .build();
             storageContract.setType(TransactionType.STORAGE_CONTRACT_SUBMISSION);
-            System.out.println("Storage contract signed and verified!");
             return storageContract;
         } catch (Exception e) {
             throw new RuntimeException(e);

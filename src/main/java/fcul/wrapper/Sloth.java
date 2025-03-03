@@ -23,13 +23,12 @@ public class Sloth {
         // Example usage
         byte[] piece = new byte[4096];  // Example 4096 byte array
         byte[] iv = new byte[32];       // Example 32 byte IV
-        int layers = 200;                // Example number of layers
+        int layers = 1;                // Example number of layers
         Random random = new Random(123);
         random.nextBytes(piece);
         random.nextBytes(iv);
-        long startTime = System.nanoTime();
         byte[] temp = Arrays.clone(piece);
-
+        long startTime = System.nanoTime();
         byte[] encodeSuccess = sloth.encode(piece, iv, layers);
         System.out.println("Time taken: " + (System.nanoTime() - startTime) / 1000000 + "ms");
         startTime = System.nanoTime();
