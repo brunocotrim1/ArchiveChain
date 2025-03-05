@@ -6,16 +6,22 @@ import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.Coin;
 import fcul.ArchiveMintUtils.Model.StorageContract;
 import fcul.ArchiveMintUtils.Model.transactions.CurrencyTransaction;
+import fcul.ArchiveMintUtils.Model.transactions.FileProofTransaction;
 import fcul.ArchiveMintUtils.Model.transactions.StorageContractSubmission;
 import fcul.ArchiveMintUtils.Model.transactions.Transaction;
 import fcul.ArchiveMintUtils.Utils.CryptoUtils;
+import jakarta.annotation.PostConstruct;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+@Service
 
 public class BlockchainState {
 
@@ -25,13 +31,19 @@ public class BlockchainState {
     private BackupLastExecuted backup = null;
     private static int maxAmountTransactions = 8000;
     private static int blockReward = 1000;
+    @Autowired
     private KeyManager keyManager;
+    @Autowired
+    private PosService posService;
+    @Autowired
+    private NetworkService net;
 
-    public BlockchainState(KeyManager keyManager) {
-        this.keyManager = keyManager;
+    @PostConstruct
+    public void init() {
+
     }
 
-    public boolean executeBlock(Block toExecute) {
+    public List<Transaction> executeBlock(Block toExecute) {
 
         try {
             System.out.println("Executing block height: " + toExecute.getHeight()
@@ -47,15 +59,21 @@ public class BlockchainState {
                         break;
                     case STORAGE_CONTRACT_SUBMISSION:
                         StorageContractSubmission storageContractSubmission = (StorageContractSubmission) transaction;
-                        storageContractLogic.addStorageContract(storageContractSubmission,toExecute);
+                        storageContractLogic.addStorageContract(storageContractSubmission, toExecute, keyManager);
+                        break;
+                    case FILE_PROOF:
+                        FileProofTransaction fileProofTransaction = (FileProofTransaction) transaction;
+                        storageContractLogic.processFileProof(fileProofTransaction);
                         break;
                     default:
                         throw new RuntimeException("Invalid transaction type");
                 }
             }
-            storageContractLogic.processFileProvingWindows(toExecute);
+            List<Transaction> resultingTransactions = new ArrayList<>();
+            resultingTransactions.addAll(storageContractLogic.generateFileProofs(posService, keyManager, toExecute));
+            storageContractLogic.processFileExpiredProvingWindows(toExecute);
             coinLogic.createCoin(CryptoUtils.getWalletAddress(minerPk), BigInteger.valueOf(blockReward));
-            return true;
+            return resultingTransactions;
         } catch (DecoderException e) {
             throw new RuntimeException(e);
         }
@@ -63,7 +81,11 @@ public class BlockchainState {
 
 
     public boolean addTransaction(Transaction transaction) {
-        return mempool.addTransaction(transaction);
+        if(mempool.addTransaction(transaction)) {
+            net.broadcastTransaction(transaction);
+            return true;
+        }
+        return false;
     }
 
     public void addTransactions(List<Transaction> transactions) {
@@ -100,6 +122,8 @@ public class BlockchainState {
                     return coinLogic.validTransaction((CurrencyTransaction) transaction);
                 case STORAGE_CONTRACT_SUBMISSION:
                     return storageContractLogic.validSubmission((StorageContractSubmission) transaction, keyManager);
+                case FILE_PROOF:
+                    return storageContractLogic.validFileProof((FileProofTransaction) transaction, posService);
                 default:
                     return false;
             }

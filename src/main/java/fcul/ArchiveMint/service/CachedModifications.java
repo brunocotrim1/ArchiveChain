@@ -1,8 +1,10 @@
 package fcul.ArchiveMint.service;
 
 
+import fcul.ArchiveMintUtils.Model.FileProof;
 import fcul.ArchiveMintUtils.Model.StorageContract;
 import fcul.ArchiveMintUtils.Model.transactions.CurrencyTransaction;
+import fcul.ArchiveMintUtils.Model.transactions.FileProofTransaction;
 import fcul.ArchiveMintUtils.Model.transactions.StorageContractSubmission;
 import fcul.ArchiveMintUtils.Model.transactions.Transaction;
 
@@ -15,6 +17,7 @@ import java.util.Map;
 public class CachedModifications {
     private Map<String, List<BigInteger>> coins = new HashMap<>();
     private Map<StorageContract, Boolean> storageContracts = new HashMap<>();
+    private Map<FileProof, Boolean> fileProofs = new HashMap<>();
 
     public void addCoin(String address, BigInteger coin) {
         if (coins == null) {
@@ -43,8 +46,19 @@ public class CachedModifications {
         storageContracts.put(contract, true);
     }
 
+    public void addFileProof(FileProof fileProof) {
+        if (fileProofs == null) {
+            return;
+        }
+        fileProofs.put(fileProof, true);
+    }
+
+
     public boolean verifyStorageSubmissionDouble(StorageContractSubmission submission) {
         return !storageContracts.containsKey(submission.getContract());
+    }
+    public boolean verifyFileProofDouble(FileProofTransaction fileProofTransaction) {
+        return !storageContracts.containsKey(fileProofTransaction.getFileProof());
     }
 
     public boolean verifyDoubleSpend(Transaction transaction) {
@@ -66,6 +80,14 @@ public class CachedModifications {
                     return false;
                 }
                 addStorageContract(contract);
+                break;
+            case FILE_PROOF:
+                FileProofTransaction fileProofTransaction = (FileProofTransaction) transaction;
+                if (!verifyFileProofDouble((FileProofTransaction) transaction)) {
+                    System.out.println("File Proof Double spend detected");
+                    return false;
+                }
+                addFileProof(fileProofTransaction.getFileProof());
                 break;
             default:
                 System.out.println("Invalid transaction type");

@@ -70,7 +70,6 @@ public class NetworkService {
                     request, String.class);
             //restTemplate.postForObject(peer + "/blockchain/sendBlock", block, Block.class);
         } catch (Exception ignored) {
-
         }
     }
 

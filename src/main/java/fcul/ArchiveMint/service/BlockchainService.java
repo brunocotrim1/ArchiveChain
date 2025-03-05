@@ -49,6 +49,7 @@ public class BlockchainService {
     @Autowired
     private PosService proofOfSpaceService;
 
+    @Autowired
     private BlockchainState blockchainState;
 
     private List<Peer> peers = new ArrayList<>();
@@ -69,11 +70,6 @@ public class BlockchainService {
     private ExecutorService plotter = Executors.newSingleThreadExecutor();
     private final ReentrantLock blockProcessingLock = new ReentrantLock();
     private final Map<Integer, ArrayList<Block>> cacheFutureBlocks = new HashMap<>();
-
-    @PostConstruct
-    public void init() {
-        blockchainState = new BlockchainState(keyManager);
-    }
 
 
     public ResponseEntity<String> archiveFile(MultipartFile file, StorageContract contract) {
@@ -415,7 +411,10 @@ public class BlockchainService {
         blockchainState.addTransactions(blockchainState.getCensuredTransactions(blockSwapped.getTransactions(),
                 newBlock.getTransactions()));
 
-        blockchainState.executeBlock(newBlock);
+        List<Transaction> transactions = blockchainState.executeBlock(newBlock);
+        for (Transaction transaction : transactions) {
+            addTransaction(transaction);
+        }
         lastExecutedBlockHeight = newBlock.getHeight();
         /*
         if(blockchainState.validateBlockTransactions(newBlock)){
@@ -432,7 +431,10 @@ public class BlockchainService {
     public boolean processBlockState(Block block) {
         if (blockchainState.validateBlockTransactions(block)) {
             finalizedBlockChain.add(block);
-            blockchainState.executeBlock(block);
+            List<Transaction> transactions = blockchainState.executeBlock(block);
+            for (Transaction transaction : transactions) {
+                addTransaction(transaction);
+            }
             lastExecutedBlockHeight = block.getHeight();
             return true;
         }
