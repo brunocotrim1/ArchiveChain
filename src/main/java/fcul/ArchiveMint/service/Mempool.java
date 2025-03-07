@@ -3,12 +3,13 @@ package fcul.ArchiveMint.service;
 
 import fcul.ArchiveMintUtils.Model.transactions.Transaction;
 
+import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class Mempool {
     private final ConcurrentLinkedQueue<Transaction> transactionQueue = new ConcurrentLinkedQueue<>();
-    private final ConcurrentHashMap<String, Transaction> transactionMap = new ConcurrentHashMap<>();
+    private final HashMap<String, Transaction> transactionMap = new HashMap<>();
 
     public boolean addTransaction(Transaction transaction) {
         if(transactionMap.containsKey(transaction.getTransactionId())) {

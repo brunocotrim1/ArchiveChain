@@ -13,7 +13,6 @@ import fcul.ArchiveMintUtils.Utils.Utils;
 import fcul.ArchiveMintUtils.Utils.wesolowskiVDF.ProofOfTime;
 import fcul.ArchiveMintUtils.Utils.wesolowskiVDF.WesolowskiVDF;
 import fcul.wrapper.FileEncodeProcess;
-import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.encoders.Hex;
@@ -205,6 +204,9 @@ public class BlockchainService {
         block.calculateHash();
         blockProcessingLock.lock();
         try {
+            for (Transaction transaction : block.getTransactions()) {
+                addTransaction(transaction);
+            }
             if (block.getHeight() == 0 && finalizedBlockChain.size() <= 1) {
                 validateGenesisBlock(block);
             } else {
@@ -218,6 +220,8 @@ public class BlockchainService {
             }
             processCache();
             finalizeBlock();
+        } catch (Exception e) {
+            e.printStackTrace();
         } finally {
             blockProcessingLock.unlock();
 
@@ -225,15 +229,29 @@ public class BlockchainService {
     }
 
     private void finalizeBlock() {
-        if (finalizedBlockChain.size() - finalizedBlockHeight > 3) {
-            if (lastFinalizedBlock != null && lastFinalizedBlock.equals(finalizedBlockChain.get((int) finalizedBlockHeight))) {
+        if (finalizedBlockChain.get(finalizedBlockChain.size() - 1).getHeight() - finalizedBlockHeight > 3) {
+            Block blockAtHeight = null;
+
+            for (int i = 0; i < finalizedBlockChain.size(); i++) {
+                if (finalizedBlockChain.get(i).getHeight() == finalizedBlockHeight) {
+                    blockAtHeight = finalizedBlockChain.get(i);
+                    break;
+                }
+            }
+            if (blockAtHeight == null) {
                 return;
             }
-            lastFinalizedBlock = finalizedBlockChain.get((int) finalizedBlockHeight);
-            //System.out.println("Finalized block: " + lastFinalizedBlock);
+            if (lastFinalizedBlock != null && lastFinalizedBlock.equals(blockAtHeight)) {
+                return;
+            }
+
+            lastFinalizedBlock = blockAtHeight;
+            finalizedBlockChain.remove(blockAtHeight);
+            blockchainState.finalize(blockAtHeight);
+            //System.out.println("Finalized block: " + Hex.toHexString(blockAtHeight.calculateHash()));
+            //System.out.println("New Size: " + finalizedBlockChain.size());
             //Generate Code to finalize here
             finalizedBlockHeight++;
-
         }
 
     }
@@ -311,7 +329,10 @@ public class BlockchainService {
 
 
     public void timelordAlgorithm(Block block) {
-        Block lastFinalizedBlock = finalizedBlockChain.get(finalizedBlockChain.size() - 1);
+        Block lastFinalizedBlock = finalizedBlockChain.getLast();
+        if (block.equals(lastFinalizedBlock)) {
+            return;
+        }
         if (!validateSignature(block)) {
             return;
         }
@@ -319,11 +340,12 @@ public class BlockchainService {
         if (block.getHeight() == lastFinalizedBlock.getHeight()) {
             //Caso de ultimo bloco estar a mesma height do bloco recebido, substituir e extender
             if (!blockIsBetter(block, lastFinalizedBlock)) {
-                System.out.println("Block not better");
+                //System.out.println("Block not better " + Hex.toHexString(block.calculateHash()) + " : " + Hex.toHexString(lastFinalizedBlock.calculateHash()));
                 return;
             }
-            if (!(extendsChain(block, finalizedBlockChain.get((int) block.getHeight() - 1))
-                    && validatePoS(block, finalizedBlockChain.get((int) block.getHeight() - 1)))) {
+            //Check if the new block extends the block with height - 1 which is the before last finalized block
+            if (!(extendsChain(block, finalizedBlockChain.get(finalizedBlockChain.size() - 2))
+                    && validatePoS(block, finalizedBlockChain.get(finalizedBlockChain.size() - 2)))) {
                 System.out.println("Not Extending chain or POS invalid");
                 return; //Se nao estender a chain
             }
@@ -347,12 +369,14 @@ public class BlockchainService {
             //Caso em que recebemos o finalizado mas ainda estamos a minar o proximo
             if (blockBeingMined != null) {
                 if (!blockIsBetter(block, blockBeingMined)) {
-                    //System.out.println("Block not better2"+ block.getHeight() + " " + blockBeingMined.getHeight());
+                    System.out.println("Block not better being mined" + Hex.toHexString(block.calculateHash()) + " : " +
+                            Hex.toHexString(blockBeingMined.calculateHash()));
                     return;
                 }
             }
             if (!extendsChain(block, lastFinalizedBlock)) {
-                System.out.println("Not Extending chain2");
+                System.out.println("Not Extending chain2:" +block.getHeight() + " " + lastFinalizedBlock.getHeight()+ ":" + Hex.toHexString(block.calculateHash()) + " : " +
+                        Hex.toHexString(lastFinalizedBlock.calculateHash()));
                 return;
             }
 
@@ -386,6 +410,7 @@ public class BlockchainService {
             // previous to this level execution, if this one is valid we can swap the blocks roll back the state
             // and execute again
             if (!blockchainState.validateBlockWithRollback(newBlock)) {
+                System.out.println("Failed Validating and executing rollback");
                 return false;
             }
             blockchainState.rollBackBlock(blockSwapped);
@@ -398,6 +423,7 @@ public class BlockchainService {
             //If the last executed block is not the same as the new block we can just swap the blocks
 
             if (!blockchainState.validateBlockTransactions(newBlock)) {
+                System.out.println("Failed Validating and executing");
                 return false;
             }
             finalizedBlockChain.removeLast();
@@ -446,7 +472,8 @@ public class BlockchainService {
         double blockQuality = posService.proofQuality(block.getPosProof(), block.getMinerPublicKey());
         double blockToCompareQuality = posService.proofQuality(blockToCompare.getPosProof(),
                 blockToCompare.getMinerPublicKey());
-
+        block.setQuality(blockQuality);
+        blockToCompare.setQuality(blockToCompareQuality);
         if (blockQuality > blockToCompareQuality) {
             return true;
         } else if (blockQuality == blockToCompareQuality) {
@@ -609,6 +636,21 @@ public class BlockchainService {
             block.addProofOfTime(pot);
             try {
                 blockProcessingLock.lock();
+
+                if(!finalizedBlockChain.isEmpty()) {
+                    lastFinalizedBlock = finalizedBlockChain.getLast();
+
+                    if(Thread.interrupted()){
+                        return;
+                    }
+                    if (!extendsChain(block, lastFinalizedBlock)) {
+                        return;
+                    }
+                }
+
+                if(blockBeingMined == null){
+                    return;
+                }
                 blockBeingMined = null;
                 currentVdfTask = null;
             } finally {

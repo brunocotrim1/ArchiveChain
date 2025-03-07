@@ -7,6 +7,7 @@ import fcul.ArchiveMintUtils.Model.transactions.CurrencyTransaction;
 import fcul.ArchiveMintUtils.Model.transactions.FileProofTransaction;
 import fcul.ArchiveMintUtils.Model.transactions.StorageContractSubmission;
 import fcul.ArchiveMintUtils.Model.transactions.Transaction;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -14,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 public class CachedModifications {
     private Map<String, List<BigInteger>> coins = new HashMap<>();
     private Map<StorageContract, Boolean> storageContracts = new HashMap<>();
@@ -67,7 +69,7 @@ public class CachedModifications {
                 CurrencyTransaction currencyTransaction = (CurrencyTransaction) transaction;
                 for (BigInteger coin : currencyTransaction.getCoins()) {
                     if (coin == null || coindDoubleSpend(currencyTransaction.getSenderAddress(), coin)) {
-                        System.out.println("Coin Double spend detected");
+                        //log.debug("Coin Double spend detected");
                         return false;
                     }
                     addCoin(currencyTransaction.getSenderAddress(), coin);
@@ -76,7 +78,7 @@ public class CachedModifications {
             case STORAGE_CONTRACT_SUBMISSION:
                 StorageContract contract = ((StorageContractSubmission) transaction).getContract();
                 if (!verifyStorageSubmissionDouble((StorageContractSubmission) transaction)) {
-                    System.out.println("Storage Double spend detected");
+                    //log.debug("Storage Double spend detected");
                     return false;
                 }
                 addStorageContract(contract);
@@ -84,13 +86,13 @@ public class CachedModifications {
             case FILE_PROOF:
                 FileProofTransaction fileProofTransaction = (FileProofTransaction) transaction;
                 if (!verifyFileProofDouble((FileProofTransaction) transaction)) {
-                    System.out.println("File Proof Double spend detected");
+                    //log.debug("File Proof Double spend detected");
                     return false;
                 }
                 addFileProof(fileProofTransaction.getFileProof());
                 break;
             default:
-                System.out.println("Invalid transaction type");
+                //log.debug("Invalid transaction type");
                 return false;
         }
         return true;

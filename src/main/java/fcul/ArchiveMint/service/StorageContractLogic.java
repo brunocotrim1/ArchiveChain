@@ -1,7 +1,6 @@
 package fcul.ArchiveMint.service;
 
 import fcul.ArchiveMint.configuration.KeyManager;
-
 import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.FileProof;
 import fcul.ArchiveMintUtils.Model.FileProvingWindow;
@@ -16,19 +15,18 @@ import lombok.Data;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
 
-import java.io.File;
+import java.io.Serializable;
 import java.util.*;
 
 @Data
-public class StorageContractLogic {
+public class StorageContractLogic implements Serializable {
     private static final int BEGINNING_NEXT_WINDOW_DELAY = 1; //4 blocks to start the next window
 
     //MAP URL->LIST OF CONTRACTS
     private HashMap<String, List<StorageContract>> storageContracts = new HashMap<>();
     //Map storage_contract_hash->proving_window
     private HashMap<String, FileProvingWindow> provingWindows = new HashMap<>();
-    PriorityQueue<FileProvingWindow> expiringContracts = new PriorityQueue<>
-            (Comparator.comparingLong(FileProvingWindow::getEndBlockIndex));
+    PriorityQueue<FileProvingWindow> expiringContracts = new PriorityQueue<>(new FileProvingWindowComparator());
     private List<FileProvingWindow> currentMinerWindows = new ArrayList<>();
 
 
@@ -39,7 +37,7 @@ public class StorageContractLogic {
                 List<StorageContract> storageContractList = storageContracts.get(contract.getFileUrl());
                 for (StorageContract existingContract : storageContractList) {
                     if (existingContract.equals(contract)) {
-                        System.out.println("Contract Already exists in the blockchain");
+                        //System.out.println("Contract Already exists in the blockchain");
                         return false;
                     }
                 }
@@ -104,7 +102,7 @@ public class StorageContractLogic {
                 System.out.println("Invalid proof");
                 return false;
             }
-            System.out.println("Valid file proof");
+            //System.out.println("Valid file proof");
             return true;
         } catch (Exception e) {
             e.printStackTrace();
@@ -112,14 +110,14 @@ public class StorageContractLogic {
         }
     }
 
-    public List<Transaction> generateFileProofs(PosService posService, KeyManager keyManager,Block executedBlock) {
+    public List<Transaction> generateFileProofs(PosService posService, KeyManager keyManager, Block executedBlock) {
         List<Transaction> fileProofs = new ArrayList<>();
         if (currentMinerWindows.isEmpty()) {
             return fileProofs;
         }
         List<FileProvingWindow> temp = new ArrayList<>();
         for (FileProvingWindow window : currentMinerWindows) {
-            if(executedBlock.getHeight() < window.getStartBlockIndex()){
+            if (executedBlock.getHeight() < window.getStartBlockIndex()) {
                 //Window not ready
                 temp.add(window);
                 continue;
@@ -134,21 +132,20 @@ public class StorageContractLogic {
                 fileProofTransaction.setStorerSignature(Hex.encodeHexString(CryptoUtils.ecdsaSign(Hex.decodeHex(fileProofTransaction.getTransactionId()),
                         keyManager.getPrivateKey())));
                 fileProofs.add(fileProofTransaction);
-                System.out.println("File proof generated: " + fileProof);
+                //System.out.println("File proof generated: " + fileProof);
             } catch (Exception e) {
                 e.printStackTrace();
                 throw new RuntimeException(e);
             }
         }
-        System.out.println("Produced file proofs: " + fileProofs.size());
+        //System.out.println("Produced file proofs: " + fileProofs.size());
         currentMinerWindows = temp;
         return fileProofs;
     }
 
-    public void processFileProof(FileProofTransaction fileProofTransaction){
-        System.out.println("Processing file proof: " + fileProofTransaction);
+    public void processFileProof(FileProofTransaction fileProofTransaction) {
+        //System.out.println("Processing file proof: " + fileProofTransaction);
     }
-
 
 
     public void addStorageContract(StorageContractSubmission contract, Block block, KeyManager keyManager) throws DecoderException {
@@ -166,13 +163,13 @@ public class StorageContractLogic {
                 block.getHeight() + BEGINNING_NEXT_WINDOW_DELAY,
                 block.getHeight() + BEGINNING_NEXT_WINDOW_DELAY +
                         contract.getContract().getProofFrequency());
-        System.out.println("Adding window: " + window);
+        //System.out.println("Adding window: " + window);
         expiringContracts.offer(window);
         String contractHash = Hex.encodeHexString(contract.getContract().getHash());
         provingWindows.put(contractHash, window);
         if (CryptoUtils.getWalletAddress(Hex.encodeHexString(keyManager.getPublicKey().getEncoded()))
                 .equals(contract.getContract().getStorerAddress())) {
-            System.out.println("Adding window to miner");
+            //System.out.println("Adding window to miner");
             currentMinerWindows.add(window);
         }
     }
@@ -183,7 +180,7 @@ public class StorageContractLogic {
         while (!expiringContracts.isEmpty() && expiringContracts.peek().getEndBlockIndex() <= toExecute.getHeight()) {
             expiringNow.add(expiringContracts.poll());
         }
-        System.out.println("Expired contracts without proofs: " + expiringNow);
+        //System.out.println("Expired contracts without proofs: " + expiringNow);
     }
 
 
@@ -276,4 +273,12 @@ public class StorageContractLogic {
         }
         return true;
     }
+
+    private static class FileProvingWindowComparator implements Comparator<FileProvingWindow>, Serializable {
+        @Override
+        public int compare(FileProvingWindow o1, FileProvingWindow o2) {
+            return Long.compare(o1.getEndBlockIndex(), o2.getEndBlockIndex());
+        }
+    }
+
 }
