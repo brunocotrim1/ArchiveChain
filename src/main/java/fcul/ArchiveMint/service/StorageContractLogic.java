@@ -16,6 +16,7 @@ import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
 
 import java.io.Serializable;
+import java.math.BigInteger;
 import java.util.*;
 
 @Data
@@ -26,9 +27,10 @@ public class StorageContractLogic implements Serializable {
     private HashMap<String, List<StorageContract>> storageContracts = new HashMap<>();
     //Map storage_contract_hash->proving_window
     private HashMap<String, FileProvingWindow> provingWindows = new HashMap<>();
-    PriorityQueue<FileProvingWindow> expiringContracts = new PriorityQueue<>(new FileProvingWindowComparator());
+    PriorityQueue<FileProvingWindow> expiringContracts = new PriorityQueue<>(new FileProvingWindowComparatorExpiring());
+    PriorityQueue<FileProvingWindow> upcomingContracts = new PriorityQueue<>(new FileProvingWindowComparatorUpcoming());
     private List<FileProvingWindow> currentMinerWindows = new ArrayList<>();
-
+    private static long STORAGE_PAYMENT = 50;
 
     public boolean validSubmission(StorageContractSubmission submission, KeyManager keyManager) {
         StorageContract contract = submission.getContract();
@@ -143,8 +145,40 @@ public class StorageContractLogic implements Serializable {
         return fileProofs;
     }
 
-    public void processFileProof(FileProofTransaction fileProofTransaction) {
-        //System.out.println("Processing file proof: " + fileProofTransaction);
+    public void processFileProof(FileProofTransaction fileProofTransaction, CoinLogic coinLogic, Block block) {
+        try {
+            //Process is only ran after validation so revalidation is not needed here
+            String url = fileProofTransaction.getFileProof().getFileUrl();
+            StorageContract contract = storageContracts.get(url).stream()
+                    .filter(storageContract -> fileProofTransaction.getFileProof().getStorageContractHash()
+                            .equals(Hex.encodeHexString(storageContract.getHash())))
+                    .findFirst().orElse(null);
+            if (contract == null) {
+                throw new RuntimeException("Contract not found");
+            }
+            FileProvingWindow window = provingWindows.get(fileProofTransaction.getFileProof().getStorageContractHash());
+            if (window == null) {
+                throw new RuntimeException("Window not found");
+            }
+            if (expiringContracts.remove(window)) {
+                System.out.println("Window removed from expiring contracts");
+            }
+            if (provingWindows.remove(fileProofTransaction.getFileProof().getStorageContractHash()) == null) {
+                throw new RuntimeException("Window not found");
+
+            }
+            String address = CryptoUtils.getWalletAddress(fileProofTransaction.getStorerPublicKey());
+            coinLogic.createCoin(address, new BigInteger(String.valueOf(STORAGE_PAYMENT)));
+
+            FileProvingWindow newWindow = new FileProvingWindow(contract, null,
+                    block.getHeight() + contract.getProofFrequency() + 1,
+                    block.getHeight() + contract.getProofFrequency() + contract.getWindowSize());
+            upcomingContracts.offer(newWindow);
+            System.out.println("Processed file proof: " + fileProofTransaction);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
     }
 
 
@@ -162,7 +196,7 @@ public class StorageContractLogic implements Serializable {
                 Hex.encodeHexString(block.calculateHash()),
                 block.getHeight() + BEGINNING_NEXT_WINDOW_DELAY,
                 block.getHeight() + BEGINNING_NEXT_WINDOW_DELAY +
-                        contract.getContract().getProofFrequency());
+                        contract.getContract().getWindowSize());
         //System.out.println("Adding window: " + window);
         expiringContracts.offer(window);
         String contractHash = Hex.encodeHexString(contract.getContract().getHash());
@@ -175,61 +209,41 @@ public class StorageContractLogic implements Serializable {
     }
 
 
-    public void processFileExpiredProvingWindows(Block toExecute) {
+    public void processFileExpiredAndUpcomingProvingWindows(Block toExecute,KeyManager keyManager) {
+        processExpiredContracts(toExecute);
+        processUpcomingContracts(toExecute, keyManager);
+        //System.out.println("Expired contracts without proofs: " + expiringNow);
+    }
+
+    private void processUpcomingContracts(Block toExecute, KeyManager keyManager) {
+        try {
+            List<FileProvingWindow> upcomingNow = new ArrayList<>();
+            while (!upcomingContracts.isEmpty() && upcomingContracts.peek().getStartBlockIndex() <= toExecute.getHeight()) {
+                upcomingNow.add(upcomingContracts.poll());
+            }
+            for (FileProvingWindow window : upcomingNow) {
+                window.setPoDpChallenge(Hex.encodeHexString(toExecute.calculateHash()));
+                expiringContracts.offer(window);
+                provingWindows.put(Hex.encodeHexString(window.getContract().getHash()), window);
+                if (CryptoUtils.getWalletAddress(Hex.encodeHexString(keyManager.getPublicKey().getEncoded()))
+                        .equals(window.getContract().getStorerAddress())) {
+                    //System.out.println("Adding window to miner");
+                    currentMinerWindows.add(window);
+                }
+                System.out.println("Upcoming window: " + window);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void processExpiredContracts(Block toExecute) {
+        //System.out.println("Expired contracts without proofs: " + expiringNow);
         List<FileProvingWindow> expiringNow = new ArrayList<>();
         while (!expiringContracts.isEmpty() && expiringContracts.peek().getEndBlockIndex() <= toExecute.getHeight()) {
             expiringNow.add(expiringContracts.poll());
         }
-        //System.out.println("Expired contracts without proofs: " + expiringNow);
-    }
-
-
-    public StorageContractLogic clone() {
-        HashMap<String, List<StorageContract>> storageContractMapClone = new HashMap<>();
-
-
-        for (Map.Entry<String, List<StorageContract>> entry : this.storageContracts.entrySet()) {
-            String key = entry.getKey();
-            List<StorageContract> originalList = entry.getValue();
-
-            // Ensure originalList is not null
-            List<StorageContract> clonedList = new ArrayList<>();
-            if (originalList != null) {
-                for (StorageContract contract : originalList) {
-                    clonedList.add(new StorageContract(contract)); // Ensure deep copy
-                }
-            }
-
-            storageContractMapClone.put(key, clonedList);
-        }
-
-
-        // Deep copy the PriorityQueue
-        PriorityQueue<FileProvingWindow> expiringContractsClone = new PriorityQueue<>(this.expiringContracts.comparator());
-
-        // Add cloned StorageContracts
-        for (FileProvingWindow fileProvingWindow : this.expiringContracts) {
-            expiringContractsClone.offer(fileProvingWindow.clone());
-        }
-
-        //Deep copy
-        HashMap<String, FileProvingWindow> provingWindowsClone = new HashMap<>();
-        for (Map.Entry<String, FileProvingWindow> entry : this.provingWindows.entrySet()) {
-            String key = entry.getKey();
-            FileProvingWindow value = entry.getValue();
-            provingWindowsClone.put(key, value.clone());
-        }
-        List<FileProvingWindow> currentMinerWindowsClone = new ArrayList<>();
-        for (FileProvingWindow window : this.currentMinerWindows) {
-            currentMinerWindowsClone.add(window.clone());
-        }
-
-        StorageContractLogic clone = new StorageContractLogic();
-        clone.storageContracts = storageContractMapClone;
-        clone.expiringContracts = expiringContractsClone;
-        clone.provingWindows = provingWindowsClone;
-        clone.currentMinerWindows = currentMinerWindowsClone;
-        return clone;
     }
 
 
@@ -274,10 +288,17 @@ public class StorageContractLogic implements Serializable {
         return true;
     }
 
-    private static class FileProvingWindowComparator implements Comparator<FileProvingWindow>, Serializable {
+    private static class FileProvingWindowComparatorExpiring implements Comparator<FileProvingWindow>, Serializable {
         @Override
         public int compare(FileProvingWindow o1, FileProvingWindow o2) {
             return Long.compare(o1.getEndBlockIndex(), o2.getEndBlockIndex());
+        }
+    }
+
+    private static class FileProvingWindowComparatorUpcoming implements Comparator<FileProvingWindow>, Serializable {
+        @Override
+        public int compare(FileProvingWindow o1, FileProvingWindow o2) {
+            return Long.compare(o1.getStartBlockIndex(), o2.getStartBlockIndex());
         }
     }
 

@@ -369,8 +369,8 @@ public class BlockchainService {
             //Caso em que recebemos o finalizado mas ainda estamos a minar o proximo
             if (blockBeingMined != null) {
                 if (!blockIsBetter(block, blockBeingMined)) {
-                    System.out.println("Block not better being mined" + Hex.toHexString(block.calculateHash()) + " : " +
-                            Hex.toHexString(blockBeingMined.calculateHash()));
+                    //System.out.println("Block not better being mined" + Hex.toHexString(block.calculateHash()) + " : " +
+                          //  Hex.toHexString(blockBeingMined.calculateHash()));
                     return;
                 }
             }
@@ -644,6 +644,7 @@ public class BlockchainService {
                         return;
                     }
                     if (!extendsChain(block, lastFinalizedBlock)) {
+                        System.out.println("Thread should be interrupted");
                         return;
                     }
                 }

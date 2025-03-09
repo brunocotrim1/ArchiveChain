@@ -67,7 +67,7 @@ public class BlockchainState {
                         break;
                     case FILE_PROOF:
                         FileProofTransaction fileProofTransaction = (FileProofTransaction) transaction;
-                        storageContractLogic.processFileProof(fileProofTransaction);
+                        storageContractLogic.processFileProof(fileProofTransaction,coinLogic,toExecute);
                         break;
                     default:
                         throw new RuntimeException("Invalid transaction type");
@@ -75,7 +75,7 @@ public class BlockchainState {
             }
             List<Transaction> resultingTransactions = new ArrayList<>();
             resultingTransactions.addAll(storageContractLogic.generateFileProofs(posService, keyManager, toExecute));
-            storageContractLogic.processFileExpiredProvingWindows(toExecute);
+            storageContractLogic.processFileExpiredAndUpcomingProvingWindows(toExecute,keyManager);
             coinLogic.createCoin(CryptoUtils.getWalletAddress(minerPk), BigInteger.valueOf(blockReward));
             //State Post Block Execution
             storeBlockAndStateInDisk(toExecute, coinLogic, storageContractLogic);

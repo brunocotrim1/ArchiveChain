@@ -22,6 +22,7 @@ import java.math.BigInteger;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 
@@ -45,7 +46,7 @@ public class ArchiveMintClient {
         //uploadFile("PoSTest/relatorio_preliminar.pdf","www.fcul.pt/relatorio_preliminar.pdf", hostUrl,
         //"e1c94c37ac886f5aeb7433c3bc4a5d088c7fc4ed1b69fe0d092c7a67e3d99897", privateKey);
         sendTransaction("551826f4fef79fe1d6bd0cf9ce4ecd1cfd3db4b171391d44a64b9a6678c0aa12",
-                Hex.encodeHexString(publicKey.getEncoded()), privateKey, getCoins("e1c94c37ac886f5aeb7433c3bc4a5d088c7fc4ed1b69fe0d092c7a67e3d99897"), 1050);
+                Hex.encodeHexString(publicKey.getEncoded()), privateKey, getCoins("e1c94c37ac886f5aeb7433c3bc4a5d088c7fc4ed1b69fe0d092c7a67e3d99897"), 54900);
     }
 
     public static List<Coin> getCoins(String address) {
@@ -66,7 +67,7 @@ public class ArchiveMintClient {
         RestTemplate restTemplate = new RestTemplate();
 
         // Define the request URL
-        String url = "http://localhost:8080/blockchain/sendCurrencyTransaction";
+        String url = "http://localhost:8080/blockchain/sendTransaction";
         // Setting headers
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -113,7 +114,7 @@ public class ArchiveMintClient {
                 .merkleRoot(merkleRootHex)
                 .value(BigInteger.valueOf(25))
                 .fileUrl(url)
-                .timestamp(BigInteger.valueOf(System.currentTimeMillis()))
+                .timestamp(Instant.now())
                 .storerAddress(storerAddress)
                 .build();
         contract.setFccnSignature(Hex.encodeHexString(CryptoUtils.ecdsaSign(contract.getHash(), privateKey)));
