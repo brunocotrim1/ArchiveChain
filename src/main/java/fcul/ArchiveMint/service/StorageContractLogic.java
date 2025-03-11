@@ -100,7 +100,8 @@ public class StorageContractLogic implements Serializable {
 
             byte[] challenge = Hex.decodeHex(window.getPoDpChallenge());
             byte[] root = Hex.decodeHex(contract.getMerkleRoot());
-            if (!posService.verifyFileProof(fileProofTransaction.getFileProof(), challenge, root)) {
+            if (!posService.verifyFileProof(fileProofTransaction.getFileProof(), challenge,
+                    root,contract.getFileLength())) {
                 System.out.println("Invalid proof");
                 return false;
             }

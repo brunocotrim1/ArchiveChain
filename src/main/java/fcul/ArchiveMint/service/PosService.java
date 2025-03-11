@@ -27,6 +27,7 @@ public class PosService {
     NodeConfig nodeConfig;
     @Autowired
     KeyManager keyManager;
+
     @PostConstruct
     public void init() throws Exception {
         //Initial Plotting to boostrap the network
@@ -85,14 +86,14 @@ public class PosService {
                 .build();
     }
 
-    public boolean verifyFileProof(FileProof fileProof, byte[] challenge, byte[] root) {
+    public boolean verifyFileProof(FileProof fileProof, byte[] challenge, byte[] root, int fileLength) {
         try {
             byte[] challengeProof = Hex.decode(fileProof.getPoDpChallenge());
-            if(!Arrays.equals(challenge, challengeProof)){
+            if (!Arrays.equals(challenge, challengeProof)) {
                 System.out.println("Challenge does not match");
                 return false;
             }
-            return PoDp.verifyPdp(fileProof.getMerkleProof(), challenge, root);
+            return PoDp.verifyPdp(fileProof.getMerkleProof(), challenge, root, fileLength);
         } catch (Exception e) {
             e.printStackTrace();
             return false;

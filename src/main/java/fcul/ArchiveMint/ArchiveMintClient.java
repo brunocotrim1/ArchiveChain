@@ -46,7 +46,7 @@ public class ArchiveMintClient {
         //uploadFile("PoSTest/relatorio_preliminar.pdf","www.fcul.pt/relatorio_preliminar.pdf", hostUrl,
         //"e1c94c37ac886f5aeb7433c3bc4a5d088c7fc4ed1b69fe0d092c7a67e3d99897", privateKey);
         sendTransaction("551826f4fef79fe1d6bd0cf9ce4ecd1cfd3db4b171391d44a64b9a6678c0aa12",
-                Hex.encodeHexString(publicKey.getEncoded()), privateKey, getCoins("e1c94c37ac886f5aeb7433c3bc4a5d088c7fc4ed1b69fe0d092c7a67e3d99897"), 54900);
+                Hex.encodeHexString(publicKey.getEncoded()), privateKey, getCoins("e1c94c37ac886f5aeb7433c3bc4a5d088c7fc4ed1b69fe0d092c7a67e3d99897"), 10000);
     }
 
     public static List<Coin> getCoins(String address) {
