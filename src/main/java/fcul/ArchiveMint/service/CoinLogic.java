@@ -4,6 +4,7 @@ package fcul.ArchiveMint.service;
 import fcul.ArchiveMintUtils.Model.Coin;
 import fcul.ArchiveMintUtils.Model.transactions.CurrencyTransaction;
 import fcul.ArchiveMintUtils.Utils.CryptoUtils;
+import lombok.Data;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
 
@@ -12,6 +13,7 @@ import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Data
 public class CoinLogic implements Serializable {
     private ConcurrentHashMap<String, List<Coin>> coinMap;
     private static final int redeemableCoinValue = 1000;

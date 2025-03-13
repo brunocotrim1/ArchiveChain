@@ -19,21 +19,7 @@ public class BackupLastExecuted {
 
     public BackupLastExecuted(Block executedBlock, CoinLogic toClone, StorageContractLogic storageContractLogicToClone) {
         this.executedBlock = executedBlock;
-        try {
-            // Serialize the object into a byte stream
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            ObjectOutputStream oos = new ObjectOutputStream(bos);
-            oos.writeObject(toClone);
-            oos.writeObject(storageContractLogicToClone);
-            oos.flush();
-
-            // Deserialize from byte stream back to object
-            ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
-            ObjectInputStream ois = new ObjectInputStream(bis);
-            this.coinLogic = (CoinLogic) ois.readObject();
-            this.storageContractLogic = (StorageContractLogic) ois.readObject();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        this.coinLogic = toClone;
+        this.storageContractLogic = storageContractLogicToClone;
     }
 }

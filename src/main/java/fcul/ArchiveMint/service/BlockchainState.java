@@ -13,6 +13,7 @@ import fcul.ArchiveMintUtils.Model.transactions.Transaction;
 import fcul.ArchiveMintUtils.Utils.CryptoUtils;
 import fcul.ArchiveMintUtils.Utils.Utils;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import org.apache.commons.codec.binary.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -24,12 +25,13 @@ import java.util.Arrays;
 import java.util.List;
 
 @Service
-
+@Getter
 public class BlockchainState {
 
     private Mempool mempool = new Mempool();
     private CoinLogic coinLogic = new CoinLogic();
     private StorageContractLogic storageContractLogic = new StorageContractLogic();
+    private Block lastExecutedBlock = null;
     //private BackupLastExecuted backup = null;
     private static int maxAmountTransactions = 8000;
     private static int blockReward = 1000;
@@ -44,7 +46,6 @@ public class BlockchainState {
 
     @PostConstruct
     public void init() {
-
     }
 
     public List<Transaction> executeBlock(Block toExecute) {
@@ -79,6 +80,7 @@ public class BlockchainState {
             coinLogic.createCoin(CryptoUtils.getWalletAddress(minerPk), BigInteger.valueOf(blockReward));
             //State Post Block Execution
             storeBlockAndStateInDisk(toExecute, coinLogic, storageContractLogic);
+            lastExecutedBlock = toExecute;
             return resultingTransactions;
         } catch (Exception e) {
             e.printStackTrace();
@@ -268,6 +270,20 @@ public class BlockchainState {
         oos.writeObject(block);
         oos.flush();
         oos.close();
+    }
+
+    public Block readBlockFromFile(long height) throws IOException, ClassNotFoundException {
+        if(lastExecutedBlock == null){
+            return null;
+        }
+        if(height>lastExecutedBlock.getHeight()){
+            return null;
+        }
+        String blockPath = nodeConfig.getStoragePath() + "/blocks/" + height + ".block";
+        ObjectInputStream ois = new ObjectInputStream(new FileInputStream(blockPath));
+        Block block = (Block) ois.readObject();
+        ois.close();
+        return block;
     }
 
     public void storeStateInDisk(CoinLogic coinLogic, StorageContractLogic storageContractLogic, long height)
