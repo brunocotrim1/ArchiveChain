@@ -23,7 +23,12 @@ public class ExplorerController {
 
     @GetMapping("/getBlocks")
     public ResponseEntity<List<Block>> getBlocks(@RequestParam(required = false) Integer limit) {
-        return explorerService.getBlocks(limit != null ? limit : 10);
+        return explorerService.getBlocks(limit != null ? limit : 100);
+    }
+
+    @GetMapping("/getBlock")
+    public ResponseEntity<Block> getBlock(@RequestParam  int index) {
+        return explorerService.getBlock(index);
     }
 
     @GetMapping("/walletBalances")

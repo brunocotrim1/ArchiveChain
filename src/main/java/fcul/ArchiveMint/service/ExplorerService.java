@@ -63,4 +63,24 @@ public class ExplorerService {
         }
         return ResponseEntity.ok(storageContracts);
     }
+
+    public ResponseEntity<Block> getBlock(int index) {
+        try {
+            if (blockchainState.getLastExecutedBlock() == null) {
+                return ResponseEntity.status(404).build();
+            }
+            long lastExecutedHeight = blockchainState.getLastExecutedBlock().getHeight();
+            if (index > lastExecutedHeight) {
+                return ResponseEntity.status(404).build();
+            }
+            Block block = blockchainState.readBlockFromFile(index);
+            if (block == null) {
+                return ResponseEntity.status(404).build();
+            }
+            return ResponseEntity.ok(block);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
 }

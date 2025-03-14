@@ -24,7 +24,7 @@ public class CoinLogic implements Serializable {
     }
 
     public Coin createCoin(String address, BigInteger value) {
-        Coin coin = new Coin(address, value, idGenerator);
+        Coin coin = new Coin(value, idGenerator);
         idGenerator = idGenerator.add(BigInteger.ONE);
         if (!coinMap.containsKey(address)) {
             List<Coin> coins = new ArrayList<>();
@@ -143,20 +143,4 @@ public class CoinLogic implements Serializable {
         return coinMap.get(address);
     }
 
-
-    public CoinLogic clone() {
-        CoinLogic clone = new CoinLogic();
-        // Deep copy coinMap
-        clone.coinMap = new ConcurrentHashMap<>();
-        for (String address : this.coinMap.keySet()) {
-            List<Coin> originalList = this.coinMap.get(address);
-            List<Coin> copiedList = new ArrayList<>();
-            for (Coin coin : originalList) {
-                copiedList.add(new Coin(coin.getOwner(), coin.getValue(), coin.getId())); // Assuming a copy constructor in Coin class
-            }
-            clone.coinMap.put(address, copiedList);
-        }
-        clone.idGenerator = new BigInteger(idGenerator.toString());
-        return clone;
-    }
 }
