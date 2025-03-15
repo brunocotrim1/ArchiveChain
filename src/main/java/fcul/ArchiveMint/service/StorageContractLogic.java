@@ -27,10 +27,10 @@ public class StorageContractLogic implements Serializable {
     private HashMap<String, List<StorageContract>> storageContracts = new HashMap<>();
     //Map storage_contract_hash->proving_window
     private HashMap<String, FileProvingWindow> provingWindows = new HashMap<>();
-    PriorityQueue<FileProvingWindow> expiringContracts = new PriorityQueue<>(new FileProvingWindowComparatorExpiring());
-    PriorityQueue<FileProvingWindow> upcomingContracts = new PriorityQueue<>(new FileProvingWindowComparatorUpcoming());
+    private PriorityQueue<FileProvingWindow> expiringContracts = new PriorityQueue<>(new FileProvingWindowComparatorExpiring());
+    private PriorityQueue<FileProvingWindow> upcomingContracts = new PriorityQueue<>(new FileProvingWindowComparatorUpcoming());
     private List<FileProvingWindow> currentMinerWindows = new ArrayList<>();
-    private static long STORAGE_PAYMENT = 50;
+    private BigInteger totalStorage = BigInteger.ZERO;
 
     public boolean validSubmission(StorageContractSubmission submission, KeyManager keyManager) {
         StorageContract contract = submission.getContract();
@@ -169,10 +169,10 @@ public class StorageContractLogic implements Serializable {
 
             }
             String address = CryptoUtils.getWalletAddress(fileProofTransaction.getStorerPublicKey());
-            coinLogic.createCoin(address, new BigInteger(String.valueOf(STORAGE_PAYMENT)));
+            coinLogic.createCoin(address, new BigInteger(String.valueOf(contract.getValue())),block,true);
 
             FileProvingWindow newWindow = new FileProvingWindow(contract, null,
-                    block.getHeight() + contract.getProofFrequency() + 1,
+                    block.getHeight() + contract.getProofFrequency(),
                     block.getHeight() + contract.getProofFrequency() + contract.getWindowSize());
             upcomingContracts.offer(newWindow);
             System.out.println("Processed file proof: " + fileProofTransaction);
@@ -191,7 +191,7 @@ public class StorageContractLogic implements Serializable {
             storageContractList.add(contract.getContract());
             storageContracts.put(contract.getContract().getFileUrl(), storageContractList);
         }
-
+        totalStorage = totalStorage.add(BigInteger.valueOf(contract.getContract().getFileLength()));
         //Creation of a proving window for the contract
         FileProvingWindow window = new FileProvingWindow(contract.getContract(),
                 Hex.encodeHexString(block.calculateHash()),

@@ -11,7 +11,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/explorer")
@@ -41,8 +45,32 @@ public class ExplorerController {
         return explorerService.getStoredFiles();
     }
 
-    @GetMapping("/storageContracts")
-    public ResponseEntity<List<StorageContract>> getStorageContracts(@RequestParam String fileName) {
-        return explorerService.getStorageContracts(fileName);
+    @GetMapping("/storageContractsChunk")
+    public ResponseEntity<List<StorageContract>> getStorageContractsChunk(
+            @RequestParam String fileName,
+            @RequestParam int offset,
+            @RequestParam int limit) {
+
+        return explorerService.getStorageContracts(fileName, offset, limit);
     }
+    @GetMapping("/minedCoins")
+    public ResponseEntity<HashMap<String, BigInteger>> getMinedCoins() {
+        return explorerService.getMinedCoins();
+    }
+
+    @GetMapping("/archivedStorage")
+    public ResponseEntity<String> getArchivedStorage() {
+        return explorerService.getArchivedStorage();
+    }
+
+    @GetMapping("/totalAmountOfContracts")
+    public ResponseEntity<String> getTotalAmountOfContracts() {
+        return explorerService.getTotalAmountOfContracts();
+    }
+    @GetMapping("/totalAmountOfCoins")
+    public ResponseEntity<String> getTotalAmountOfCoins() {
+        return explorerService.getTotalAmountOfCoins();
+    }
+
+
 }

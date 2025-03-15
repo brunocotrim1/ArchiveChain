@@ -60,7 +60,8 @@ public class BlockchainState {
                 switch (transaction.getType()) {
                     case CURRENCY_TRANSACTION:
                         CurrencyTransaction currencyTransaction = (CurrencyTransaction) transaction;
-                        coinLogic.spendCoin(currencyTransaction.getSenderAddress(), currencyTransaction.getReceiverAddress(), currencyTransaction.getCoins(), currencyTransaction.getAmount());
+                        coinLogic.spendCoin(currencyTransaction.getSenderAddress(), currencyTransaction.getReceiverAddress(),
+                                currencyTransaction.getCoins(), currencyTransaction.getAmount(),toExecute);
                         break;
                     case STORAGE_CONTRACT_SUBMISSION:
                         StorageContractSubmission storageContractSubmission = (StorageContractSubmission) transaction;
@@ -77,7 +78,7 @@ public class BlockchainState {
             List<Transaction> resultingTransactions = new ArrayList<>();
             resultingTransactions.addAll(storageContractLogic.generateFileProofs(posService, keyManager, toExecute));
             storageContractLogic.processFileExpiredAndUpcomingProvingWindows(toExecute,keyManager);
-            coinLogic.createCoin(CryptoUtils.getWalletAddress(minerPk), BigInteger.valueOf(blockReward));
+            coinLogic.createCoin(CryptoUtils.getWalletAddress(minerPk), BigInteger.valueOf(blockReward),toExecute,true);
             //State Post Block Execution
             storeBlockAndStateInDisk(toExecute, coinLogic, storageContractLogic);
             lastExecutedBlock = toExecute;
