@@ -6,6 +6,7 @@ import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.Peer;
 import fcul.ArchiveMintUtils.Model.StorageContract;
 import fcul.ArchiveMintUtils.Model.StorageType;
+import fcul.ArchiveMintUtils.Model.transactions.StorageContractSubmission;
 import fcul.ArchiveMintUtils.Model.transactions.Transaction;
 import fcul.ArchiveMintUtils.Utils.CryptoUtils;
 import fcul.ArchiveMintUtils.Utils.PoS;
@@ -88,10 +89,7 @@ public class BlockchainService {
                 try {
 
                     if (contract.getStorageType().equals(StorageType.AES)) {
-                        System.out.println("AES File submitted to plotter, available space: " + nodeConfig.getDedicatedStorage());
-                        posService.plotFileData(fileData, contract.getFileUrl());
-                        addTransaction(transaction);
-                        System.out.println("Storage contract signed and verified!");
+                        aesProcess(fileData, contract.getFileUrl(), transaction);
                     } else {
                         addTransaction(vdeProccess(fileData, file.getOriginalFilename(), contract));
                     }
@@ -110,14 +108,48 @@ public class BlockchainService {
         }
     }
 
+    public void aesProcess(byte[] fileData, String fileUrl, Transaction t) throws Exception {
+        System.out.println("AES File submitted to plotter, available space: " + nodeConfig.getDedicatedStorage());
+        posService.plotFileData(fileData, fileUrl);
+        addTransaction(t);
+        System.out.println("Storage contract signed and verified!");
+        // Assuming t is or contains StorageContractSubmission
+        StorageContractSubmission storageContract = (StorageContractSubmission) t;
+
+        // Simple RestTemplate setup
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<StorageContractSubmission> requestEntity = new HttpEntity<>(storageContract, headers);
+
+        // Send to the validateAES endpoint
+        String targetUrl = nodeConfig.getFccnNetworkAddress() + "/storage/validateAES";  // Assuming nodeConfig provides the base URL
+        ResponseEntity<Boolean> response = restTemplate.exchange(
+                targetUrl,
+                HttpMethod.POST,
+                requestEntity,
+                Boolean.class
+        );
+
+        // Check response
+        if (response.getStatusCode() == HttpStatus.OK && Boolean.TRUE.equals(response.getBody())) {
+            System.out.println("Storage contract signed and verified!");
+        } else {
+            throw new Exception("AES validation failed! Status Code: " + response.getStatusCode());
+        }
+    }
+
 
     public Transaction vdeProccess(byte[] file, String orinigalFilename, StorageContract contract) throws Exception {
         String normalizedFileName = Normalizer.normalize(orinigalFilename, Normalizer.Form.NFC);
         int iterationsPerChunk = FileEncodeProcess.iterationsPerChunk(file.length);
         String salt = normalizedFileName + CryptoUtils.getWalletAddress(Hex.toHexString(keyManager.getPublicKey().getEncoded()));
         byte[] iv = CryptoUtils.hash256(salt.getBytes());
+        System.out.println(Utils.GREEN + "VDE Encoding File: " + orinigalFilename + Utils.RESET);
         byte[] fileData = FileEncodeProcess.encodeFileVDE(file, iv, 1);
-        System.out.println("AES File submitted to plotter, available space: " + nodeConfig.getDedicatedStorage());
+        System.out.println(Utils.GREEN + "VDE File submitted to plotter, available space: " +
+                nodeConfig.getDedicatedStorage() + Utils.RESET);
         posService.plotFileData(fileData, contract.getFileUrl());
         ByteArrayResource resource = new ByteArrayResource(fileData) {
             @Override
@@ -370,12 +402,12 @@ public class BlockchainService {
             if (blockBeingMined != null) {
                 if (!blockIsBetter(block, blockBeingMined)) {
                     //System.out.println("Block not better being mined" + Hex.toHexString(block.calculateHash()) + " : " +
-                          //  Hex.toHexString(blockBeingMined.calculateHash()));
+                    //  Hex.toHexString(blockBeingMined.calculateHash()));
                     return;
                 }
             }
             if (!extendsChain(block, lastFinalizedBlock)) {
-                System.out.println("Not Extending chain2:" +block.getHeight() + " " + lastFinalizedBlock.getHeight()+ ":" + Hex.toHexString(block.calculateHash()) + " : " +
+                System.out.println("Not Extending chain2:" + block.getHeight() + " " + lastFinalizedBlock.getHeight() + ":" + Hex.toHexString(block.calculateHash()) + " : " +
                         Hex.toHexString(lastFinalizedBlock.calculateHash()));
                 return;
             }
@@ -637,10 +669,10 @@ public class BlockchainService {
             try {
                 blockProcessingLock.lock();
 
-                if(!finalizedBlockChain.isEmpty()) {
+                if (!finalizedBlockChain.isEmpty()) {
                     lastFinalizedBlock = finalizedBlockChain.getLast();
 
-                    if(Thread.interrupted()){
+                    if (Thread.interrupted()) {
                         return;
                     }
                     if (!extendsChain(block, lastFinalizedBlock)) {
@@ -649,7 +681,7 @@ public class BlockchainService {
                     }
                 }
 
-                if(blockBeingMined == null){
+                if (blockBeingMined == null) {
                     return;
                 }
                 blockBeingMined = null;

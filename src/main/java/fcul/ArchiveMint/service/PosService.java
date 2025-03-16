@@ -7,6 +7,7 @@ import fcul.ArchiveMintUtils.Model.FileProvingWindow;
 import fcul.ArchiveMintUtils.Model.StorageContract;
 import fcul.ArchiveMintUtils.Utils.PoDp;
 import fcul.ArchiveMintUtils.Utils.PoS;
+import fcul.ArchiveMintUtils.Utils.Utils;
 import jakarta.annotation.PostConstruct;
 import org.bouncycastle.util.encoders.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,12 +47,15 @@ public class PosService {
     public void plotFileData(byte[] data, String fileName) throws Exception {
         String normalizedFileName = Normalizer.normalize(fileName, Normalizer.Form.NFC);
         fileName = URLEncoder.encode(normalizedFileName, StandardCharsets.UTF_8);
+        System.out.println(Utils.GREEN + "Plotting file " + fileName + Utils.RESET);
         String destinationFolder = nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + fileName;
         PoS.plot_FilesParallel(data, destinationFolder, keyManager.getPublicKey().getEncoded());
     }
 
     public byte[] retrieveOriginalData(String filename) throws Exception {
-        //String encodedFileName = URLEncoder.encode(filename, StandardCharsets.UTF_8);
+        filename = URLDecoder.decode(filename, StandardCharsets.UTF_8);
+        filename = Normalizer.normalize(filename, Normalizer.Form.NFC);
+        filename = URLEncoder.encode(filename, StandardCharsets.UTF_8);
         System.out.println("Retrieving original data from " + nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + filename);
         return PoS.retrieveOriginalParallel(nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + filename);
 

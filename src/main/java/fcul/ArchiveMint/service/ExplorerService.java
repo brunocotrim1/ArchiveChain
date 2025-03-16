@@ -3,7 +3,9 @@ package fcul.ArchiveMint.service;
 import fcul.ArchiveMint.model.WalletBalanceModel;
 import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.Coin;
+import fcul.ArchiveMintUtils.Model.FileProvingWindow;
 import fcul.ArchiveMintUtils.Model.StorageContract;
+import org.apache.commons.codec.binary.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -119,4 +121,27 @@ public class ExplorerService {
         return ResponseEntity.ok(String.valueOf(blockchainState.getCoinLogic().getTotalCoins().toString()));
     }
 
+    public ResponseEntity<StorageContract> getStorageContract(String contractHash, String fileUrl) {
+        List<StorageContract> storageContract = blockchainState.getStorageContractLogic().getStorageContracts().get(fileUrl);
+
+        if (storageContract == null) {
+            return ResponseEntity.status(404).build();
+        }
+        for (StorageContract sc : storageContract) {
+            if (Hex.encodeHexString(sc.getHash()).equals(contractHash)) {
+                return ResponseEntity.ok(sc);
+            }
+        }
+        return ResponseEntity.status(404).build();
+    }
+
+
+    public ResponseEntity<List<FileProvingWindow>> getContractFileProvingWindows(String contractHash) {
+        List<FileProvingWindow> fileProvingWindows = blockchainState.getStorageContractLogic()
+                .getFileProvingWindows().get(contractHash);
+        if (fileProvingWindows == null) {
+            return ResponseEntity.status(404).build();
+        }
+        return ResponseEntity.ok(fileProvingWindows);
+    }
 }

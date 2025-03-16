@@ -1,10 +1,7 @@
 package fcul.ArchiveMint.service;
 
 import fcul.ArchiveMint.configuration.KeyManager;
-import fcul.ArchiveMintUtils.Model.Block;
-import fcul.ArchiveMintUtils.Model.FileProof;
-import fcul.ArchiveMintUtils.Model.FileProvingWindow;
-import fcul.ArchiveMintUtils.Model.StorageContract;
+import fcul.ArchiveMintUtils.Model.*;
 import fcul.ArchiveMintUtils.Model.transactions.FileProofTransaction;
 import fcul.ArchiveMintUtils.Model.transactions.StorageContractSubmission;
 import fcul.ArchiveMintUtils.Model.transactions.Transaction;
@@ -30,6 +27,9 @@ public class StorageContractLogic implements Serializable {
     private PriorityQueue<FileProvingWindow> expiringContracts = new PriorityQueue<>(new FileProvingWindowComparatorExpiring());
     private PriorityQueue<FileProvingWindow> upcomingContracts = new PriorityQueue<>(new FileProvingWindowComparatorUpcoming());
     private List<FileProvingWindow> currentMinerWindows = new ArrayList<>();
+    private HashMap<String,List<FileProvingWindow>> fileProvingWindows = new HashMap<>();
+
+    //This fields can be removed since they are only used for the frontend and no logic needs them
     private BigInteger totalStorage = BigInteger.ZERO;
 
     public boolean validSubmission(StorageContractSubmission submission, KeyManager keyManager) {
@@ -166,8 +166,8 @@ public class StorageContractLogic implements Serializable {
             }
             if (provingWindows.remove(fileProofTransaction.getFileProof().getStorageContractHash()) == null) {
                 throw new RuntimeException("Window not found");
-
             }
+            window.setState(FileProvingWindowState.PROVED);
             String address = CryptoUtils.getWalletAddress(fileProofTransaction.getStorerPublicKey());
             coinLogic.createCoin(address, new BigInteger(String.valueOf(contract.getValue())),block,true);
 
@@ -175,6 +175,10 @@ public class StorageContractLogic implements Serializable {
                     block.getHeight() + contract.getProofFrequency(),
                     block.getHeight() + contract.getProofFrequency() + contract.getWindowSize());
             upcomingContracts.offer(newWindow);
+            String contractHash = Hex.encodeHexString(contract.getHash());
+            fileProvingWindows.putIfAbsent(contractHash, new ArrayList<>());
+            fileProvingWindows.get(contractHash).add(newWindow);
+
             System.out.println("Processed file proof: " + fileProofTransaction);
         } catch (Exception e) {
             e.printStackTrace();
@@ -198,10 +202,17 @@ public class StorageContractLogic implements Serializable {
                 block.getHeight() + BEGINNING_NEXT_WINDOW_DELAY,
                 block.getHeight() + BEGINNING_NEXT_WINDOW_DELAY +
                         contract.getContract().getWindowSize());
+        window.setState(FileProvingWindowState.PROVING);
+
+
         //System.out.println("Adding window: " + window);
         expiringContracts.offer(window);
+
         String contractHash = Hex.encodeHexString(contract.getContract().getHash());
         provingWindows.put(contractHash, window);
+        fileProvingWindows.putIfAbsent(contractHash, new ArrayList<>());
+        fileProvingWindows.get(contractHash).add(window);
+
         if (CryptoUtils.getWalletAddress(Hex.encodeHexString(keyManager.getPublicKey().getEncoded()))
                 .equals(contract.getContract().getStorerAddress())) {
             //System.out.println("Adding window to miner");
@@ -231,6 +242,7 @@ public class StorageContractLogic implements Serializable {
                     //System.out.println("Adding window to miner");
                     currentMinerWindows.add(window);
                 }
+                window.setState(FileProvingWindowState.PROVING);
                 System.out.println("Upcoming window: " + window);
             }
         } catch (Exception e) {
@@ -244,6 +256,10 @@ public class StorageContractLogic implements Serializable {
         List<FileProvingWindow> expiringNow = new ArrayList<>();
         while (!expiringContracts.isEmpty() && expiringContracts.peek().getEndBlockIndex() <= toExecute.getHeight()) {
             expiringNow.add(expiringContracts.poll());
+        }
+        for(FileProvingWindow window: expiringNow){
+            window.setState(FileProvingWindowState.FAILED);
+            System.out.println("Expired window: " + window);
         }
     }
 

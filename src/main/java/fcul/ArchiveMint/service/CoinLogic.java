@@ -20,6 +20,8 @@ public class CoinLogic implements Serializable {
     private ConcurrentHashMap<String, List<Coin>> coinMap;
     private static final int redeemableCoinValue = 1000;
     private BigInteger idGenerator = BigInteger.ZERO;
+
+    //This fields can be removed since they are only used for the frontend and no logic needs them
     private HashMap<String, BigInteger> minedCoinsHistory = new HashMap<>();
     private BigInteger totalCoins = BigInteger.ZERO;
 
