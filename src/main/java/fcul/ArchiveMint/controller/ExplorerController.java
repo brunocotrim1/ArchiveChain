@@ -1,6 +1,7 @@
 package fcul.ArchiveMint.controller;
 
 import fcul.ArchiveMint.model.WalletBalanceModel;
+import fcul.ArchiveMint.model.WalletDetailsModel;
 import fcul.ArchiveMint.service.ExplorerService;
 import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.FileProvingWindow;
@@ -29,7 +30,7 @@ public class ExplorerController {
     }
 
     @GetMapping("/getBlock")
-    public ResponseEntity<Block> getBlock(@RequestParam  int index) {
+    public ResponseEntity<Block> getBlock(@RequestParam int index) {
         return explorerService.getBlock(index);
     }
 
@@ -51,6 +52,7 @@ public class ExplorerController {
 
         return explorerService.getStorageContracts(fileName, offset, limit);
     }
+
     @GetMapping("/minedCoins")
     public ResponseEntity<HashMap<String, BigInteger>> getMinedCoins() {
         return explorerService.getMinedCoins();
@@ -65,6 +67,7 @@ public class ExplorerController {
     public ResponseEntity<String> getTotalAmountOfContracts() {
         return explorerService.getTotalAmountOfContracts();
     }
+
     @GetMapping("/totalAmountOfCoins")
     public ResponseEntity<String> getTotalAmountOfCoins() {
         return explorerService.getTotalAmountOfCoins();
@@ -81,6 +84,12 @@ public class ExplorerController {
     public ResponseEntity<List<FileProvingWindow>> getContractFileProvingWindows(@RequestParam String contractHash) {
         return explorerService.getContractFileProvingWindows(contractHash);
     }
+
+    @GetMapping("/getWalletDetails")
+    public ResponseEntity<WalletDetailsModel> getWalletDetails(@RequestParam String address) {
+        return explorerService.getWalletDetails(address);
+    }
+
 
     private boolean isBase64(String str) {
         // Check if the string contains only valid Base64 characters

@@ -1,10 +1,16 @@
 package fcul.ArchiveMint.service;
 
 import fcul.ArchiveMint.model.WalletBalanceModel;
+import fcul.ArchiveMint.model.WalletDetailsModel;
 import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.Coin;
 import fcul.ArchiveMintUtils.Model.FileProvingWindow;
 import fcul.ArchiveMintUtils.Model.StorageContract;
+import fcul.ArchiveMintUtils.Model.transactions.CurrencyTransaction;
+import fcul.ArchiveMintUtils.Model.transactions.FileProofTransaction;
+import fcul.ArchiveMintUtils.Model.transactions.StorageContractSubmission;
+import fcul.ArchiveMintUtils.Model.transactions.Transaction;
+import fcul.ArchiveMintUtils.Utils.CryptoUtils;
 import org.apache.commons.codec.binary.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -14,11 +20,96 @@ import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static fcul.ArchiveMintUtils.Model.transactions.TransactionType.CURRENCY_TRANSACTION;
+
 @Service
 public class ExplorerService {
 
     @Autowired
     private BlockchainState blockchainState;
+
+
+    public ResponseEntity<WalletDetailsModel> getWalletDetails(String address) {
+        WalletDetailsModel wd = new WalletDetailsModel();
+        wd.setAddress(address);
+        HashMap<String, List<StorageContract>> storageContractsMap = blockchainState.getStorageContractLogic()
+                .getStorageContracts();
+        List<StorageContract> contracts = new ArrayList<>();
+        for (List<StorageContract> sc : storageContractsMap.values()) {
+            for (StorageContract contract : sc) {
+                if (contract.getStorerAddress().equals(address)) {
+                    contracts.add(contract);
+                }
+            }
+        }
+        wd.setStorageContracts(contracts);
+        fillWalletDetailsBlock(wd, address);
+        ConcurrentHashMap<String, List<Coin>> coinsPerWallet = blockchainState.getCoinLogic().getCoinMap();
+        if (coinsPerWallet.containsKey(address)) {
+            wd.setBalance(coinsPerWallet.get(address).stream().map(Coin::getValue).reduce(BigInteger.ZERO, BigInteger::add));
+        } else {
+            wd.setBalance(BigInteger.ZERO);
+        }
+        return ResponseEntity.ok(wd);
+    }
+
+    private void fillWalletDetailsBlock(WalletDetailsModel wd, String address) {
+        try {
+            wd.setTransactions(new ArrayList<>());
+            wd.setWonBlocks(new ArrayList<>());
+            wd.setPublicKey(null);
+            if (blockchainState.getLastExecutedBlock() == null) {
+                return;
+            }
+
+            for (int i = 0; i <= blockchainState.getLastExecutedBlock().getHeight(); i++) {
+                Block block = blockchainState.readBlockFromFile(i);
+                String minerPk = Hex.encodeHexString(block.getMinerPublicKey());
+                String addressMiner = CryptoUtils.getWalletAddress(minerPk);
+                if (addressMiner.equals(address)) {
+                    wd.getWonBlocks().add(block.getHeight());
+                    if (wd.getPublicKey() == null) {
+                        wd.setPublicKey(minerPk);
+                    }
+                }
+                List<Transaction> transactions = block.getTransactions();
+                for (int j = 0; j < transactions.size(); j++) {
+                    Transaction transaction = transactions.get(j);
+                    switch (transaction.getType()) {
+                        case CURRENCY_TRANSACTION:
+                            CurrencyTransaction currencyTransaction = (CurrencyTransaction) transaction;
+                            if (currencyTransaction.getSenderAddress().equals(address) ||
+                                    currencyTransaction.getReceiverAddress().equals(address)) {
+                                wd.getTransactions().add(currencyTransaction);
+                            }
+                            break;
+                        case STORAGE_CONTRACT_SUBMISSION:
+                            StorageContractSubmission storageContractSubmission = (StorageContractSubmission) transaction;
+                            if (storageContractSubmission.getContract().getStorerAddress().equals(address)) {
+                                wd.getTransactions().add(storageContractSubmission);
+                                if (wd.getPublicKey() == null) {
+                                    wd.setPublicKey(storageContractSubmission.getStorerPublicKey());
+                                }
+                            }
+                            break;
+                        case FILE_PROOF:
+                            FileProofTransaction fileProofTransaction = (FileProofTransaction) transaction;
+                            String addressFp = CryptoUtils.getWalletAddress(fileProofTransaction.getStorerPublicKey());
+                            if (addressFp.equals(address)) {
+                                wd.getTransactions().add(fileProofTransaction);
+                                if (wd.getPublicKey() == null) {
+                                    wd.setPublicKey(fileProofTransaction.getStorerPublicKey());
+                                }
+                            }
+                            break;
+                    }
+                }
+
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
     public ResponseEntity<List<Block>> getBlocks(Integer limit) {
         try {
