@@ -235,4 +235,41 @@ public class ExplorerService {
         }
         return ResponseEntity.ok(fileProvingWindows);
     }
+
+    public ResponseEntity<String> getTotalAmountOfFiles() {
+        return ResponseEntity.ok(new BigInteger(String.valueOf(blockchainState.getStorageContractLogic().getStorageContracts().keySet().size())).toString());
+    }
+
+    public ResponseEntity<List<String>> getStorersOfFile(String fileUrl) {
+        List<StorageContract> storageContracts = blockchainState.getStorageContractLogic().getStorageContracts().get(fileUrl);
+        if (storageContracts == null) {
+            return ResponseEntity.status(404).build();
+        }
+        List<String> storers = new ArrayList<>();
+        for (StorageContract sc : storageContracts) {
+            storers.add(sc.getStorerAddress());
+        }
+        return ResponseEntity.ok(storers);
+    }
+
+    public ResponseEntity<String> getStorageHashFileAndAddress(String fileUrl, String address) {
+        List<StorageContract> storageContracts = blockchainState.getStorageContractLogic().getStorageContracts().get(fileUrl);
+        if (storageContracts == null) {
+            return ResponseEntity.status(404).build();
+        }
+        for (StorageContract sc : storageContracts) {
+            if (sc.getStorerAddress().equals(address)) {
+                return ResponseEntity.ok(Hex.encodeHexString(sc.getHash()));
+            }
+        }
+        return ResponseEntity.status(404).build();
+    }
+
+    public ResponseEntity<HashMap<String, BigInteger>> getStorageHistory() {
+        return ResponseEntity.ok(blockchainState.getStorageContractLogic().storageUsedHistory);
+    }
+
+    public ResponseEntity<HashMap<String, BigInteger>> getFileHistory() {
+        return ResponseEntity.ok(blockchainState.getStorageContractLogic().archivedFileHistory);
+    }
 }

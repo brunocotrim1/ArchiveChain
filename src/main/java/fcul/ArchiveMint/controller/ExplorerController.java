@@ -7,6 +7,7 @@ import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.FileProvingWindow;
 import fcul.ArchiveMintUtils.Model.StorageContract;
 import org.apache.commons.codec.binary.Hex;
+import org.python.modules._hashlib;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -49,8 +50,14 @@ public class ExplorerController {
             @RequestParam String fileName,
             @RequestParam int offset,
             @RequestParam int limit) {
-
+        fileName = URLDecoder.decode(fileName, StandardCharsets.UTF_8);
         return explorerService.getStorageContracts(fileName, offset, limit);
+    }
+
+    @GetMapping("/getStorageHashFileAndAddress")
+    public ResponseEntity<String> getStorageHashFileAndAddress(@RequestParam String fileUrl,@RequestParam String address) {
+        fileUrl = URLDecoder.decode(fileUrl, StandardCharsets.UTF_8);
+        return explorerService.getStorageHashFileAndAddress(fileUrl,address);
     }
 
     @GetMapping("/minedCoins")
@@ -73,6 +80,17 @@ public class ExplorerController {
         return explorerService.getTotalAmountOfCoins();
     }
 
+    @GetMapping("/totalAmountOfFiles")
+    public ResponseEntity<String> getTotalAmountOfFiles() {
+        return explorerService.getTotalAmountOfFiles();
+    }
+
+    @GetMapping("/getStorersOfFile")
+    public ResponseEntity<List<String>> getStorersOfFile(@RequestParam String fileUrl) {
+        fileUrl = URLDecoder.decode(fileUrl, StandardCharsets.UTF_8);
+        return explorerService.getStorersOfFile(fileUrl);
+    }
+
     @GetMapping("/getStorageContract")
     public ResponseEntity<StorageContract> getStorageContract(@RequestParam String contractHash,
                                                               @RequestParam String fileUrl) {
@@ -88,6 +106,15 @@ public class ExplorerController {
     @GetMapping("/getWalletDetails")
     public ResponseEntity<WalletDetailsModel> getWalletDetails(@RequestParam String address) {
         return explorerService.getWalletDetails(address);
+    }
+
+    @GetMapping("/getStorageHistory")
+    public ResponseEntity<HashMap<String,BigInteger>> getStorageHistory() {
+        return explorerService.getStorageHistory();
+    }
+    @GetMapping("/getFileHistory")
+    public ResponseEntity<HashMap<String,BigInteger>> getFileHistory() {
+        return explorerService.getFileHistory();
     }
 
 
