@@ -18,6 +18,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @Data
@@ -33,7 +35,7 @@ public class NetworkService {
     private ExecutorService networkExecutor = Executors.newVirtualThreadPerTaskExecutor();
     private List<String> peers;
     private RestTemplate restTemplate = new RestTemplate();
-
+    private static final Pattern URL_PATTERN = Pattern.compile("^(https?://)((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}|(?:\\d{1,3}\\.){3}\\d{1,3})(?::\\d{1,5})?(?:/[^\\s]*)?$");
     @PostConstruct
     public void init() {
         peers = new ArrayList<>(nodeConfig.getSeedNodes());
@@ -98,9 +100,18 @@ public class NetworkService {
 
     public void addPeerAddress(String peerAddress) {
         synchronized (peers) {
-            if (!peers.contains(peerAddress) && !peerAddress.endsWith(":" + ownPort)) {
+            // Regex for validating URLs like http://192.168.1.72:8080 or http://google.com:8080
+            String urlRegex = "^(https?://)((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}|(?:\\d{1,3}\\.){3}\\d{1,3})(?::\\d{1,5})?(?:/[^\\s]*)?$";
+            Pattern pattern = Pattern.compile(urlRegex);
+            Matcher matcher = pattern.matcher(peerAddress);
+
+            // Check if peerAddress is valid, not already in peers, and doesn't end with ownPort
+            if (!peers.contains(peerAddress)  && matcher.matches()) {
+                System.out.println("Adding peer address: " + peerAddress);
                 peers.add(peerAddress);
                 broadcastPeerAddress(peerAddress);
+            } else {
+                System.out.println("Invalid or duplicate peer address: " + peerAddress);
             }
         }
     }

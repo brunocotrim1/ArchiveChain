@@ -57,7 +57,7 @@ public class BlockchainService {
     private List<Transaction> pendingTransactions = new ArrayList<>();
 
     private WesolowskiVDF vdf = new WesolowskiVDF();
-    private int VDF_ITERATIONS = 500000;//About 20 seconds, still need difficulty reset implementation
+    private int VDF_ITERATIONS = 150000;//About 20 seconds, still need difficulty reset implementation
     private Thread currentVdfTask = null;
 
     private byte[] genesisChallenge = Hex.decode("ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb");
