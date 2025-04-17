@@ -51,7 +51,6 @@ public class NetworkService {
     public <T> void broadcast(T data, String endpoint) {
 
         for (String peer : peers) {
-            System.out.println("Broadcasting to peer: " + peer);
             try {
                 int port = Integer.parseInt(peer.split(":")[2]);
                 if (port == Integer.parseInt(ownPort)) {
