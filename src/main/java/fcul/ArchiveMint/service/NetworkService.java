@@ -3,6 +3,7 @@ package fcul.ArchiveMint.service;
 import fcul.ArchiveMint.configuration.NodeConfig;
 import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.transactions.Transaction;
+import fcul.ArchiveMintUtils.Utils.Utils;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -42,10 +43,13 @@ public class NetworkService {
         broadcastPeerAddress(getPeerAddress());
         requestPeersFromSeed(nodeConfig.getSeedNodes().get(1));
         System.out.println(Arrays.toString(peers.toArray()));
+        System.out.println(Utils.GREEN + "Node started at " + getPeerAddress() + Utils.RESET);
     }
 
     public <T> void broadcast(T data, String endpoint) {
+
         for (String peer : peers) {
+            System.out.println("Broadcasting to peer: " + peer);
             try {
                 int port = Integer.parseInt(peer.split(":")[2]);
                 if (port == Integer.parseInt(ownPort)) {
