@@ -3,6 +3,8 @@ package fcul.ArchiveMint.controller;
 
 import fcul.ArchiveMint.configuration.KeyManager;
 import fcul.ArchiveMint.service.BlockchainService;
+import fcul.ArchiveMint.service.BlockchainState;
+import fcul.ArchiveMint.service.NetworkService;
 import fcul.ArchiveMint.service.PosService;
 import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.Coin;
@@ -11,10 +13,12 @@ import fcul.ArchiveMintUtils.Model.transactions.Transaction;
 import fcul.ArchiveMintUtils.Utils.CryptoUtils;
 import org.apache.commons.codec.binary.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -29,6 +33,8 @@ public class BlockchainController {
     private PosService proofOfSpaceService;
     @Autowired
     private KeyManager keyManager;
+    @Autowired
+    private NetworkService networkService;
 
     @GetMapping("/test")
     public int test() {
@@ -89,4 +95,30 @@ public class BlockchainController {
         return keyManager.registerFCCN();
     }
 
+    @GetMapping("/getBlock")
+    public ResponseEntity<Block> getBlock(@RequestParam long height) {
+        try {
+            BlockchainState state = blockchainService.getBlockchainState();
+            if (state.getLastExecutedBlock() == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            }
+            long blockHeight = state.getLastExecutedBlock().getHeight();
+            if (height > blockHeight) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            }
+            Block block = state.readBlockFromFile(height);
+            return ResponseEntity.ok(block);
+        } catch (IOException | ClassNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    @PostMapping("/addPeer")
+    public ResponseEntity<String> addPeer(@RequestBody String peerAddress) {
+        networkService.addPeerAddress(peerAddress);
+        return ResponseEntity.ok(networkService.getPeerAddress());
+    }
+    @GetMapping("/getPeers")
+    public ResponseEntity<List<String>> getPeers() {
+        return ResponseEntity.ok(networkService.getPeers());
+    }
 }

@@ -70,7 +70,7 @@ public class BlockchainService {
     private ExecutorService plotter = Executors.newSingleThreadExecutor();
     private final ReentrantLock blockProcessingLock = new ReentrantLock();
     private final Map<Integer, ArrayList<Block>> cacheFutureBlocks = new HashMap<>();
-
+    private volatile boolean synchronizing = false;
 
     public ResponseEntity<String> archiveFile(MultipartFile file, StorageContract contract) {
         try {
@@ -207,6 +207,79 @@ public class BlockchainService {
     ////////////////////////////  Consensus Related Methods ////////////////////////////
 
 
+    public boolean syncNewNode() {
+        String seedNodeUrl = nodeConfig.getSeedNodes().get(0);
+        synchronizing = true;
+        long currentHeight = 0;
+        try {
+            System.out.println(Utils.YELLOW + "Synchronizing with seed node: " + seedNodeUrl + Utils.RESET);
+            RestTemplate restTemplate = new RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            // Start with the genesis block (height 0)
+            blockProcessingLock.lock();
+            try {
+                finalizedBlockChain.clear(); // Clear existing chain for new node
+                while (true) {
+                    // Request block at current height
+                    ResponseEntity<Block> response = restTemplate.exchange(
+                            seedNodeUrl + "/blockchain/getBlock?height=" + currentHeight,
+                            HttpMethod.GET,
+                            new HttpEntity<>(headers),
+                            Block.class
+                    );
+
+                    if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
+                        if (response.getStatusCode() == HttpStatus.NOT_FOUND) {
+                            // No more blocks available
+                            log.info("Synchronized blockchain up to height {}", finalizedBlockHeight);
+                            break;
+                        }
+                        log.error("Failed to fetch block at height {}: {}", currentHeight, response.getStatusCode());
+                        return false;
+                    }
+
+                    Block block = response.getBody();
+                    block.setHash(null); // Clear hash to recalculate
+                    block.calculateHash();
+
+                    // Validate block
+                    if (block.getHeight() == 0) {
+                        if (!validateGenesisBlock(block)) {
+                            log.error("Genesis block validation failed");
+                            return false;
+                        }
+                        System.out.println(Utils.YELLOW + "Synchronized genesis block" + Utils.RESET);
+                    } else {
+                        if (!timelordAlgorithm(block)) {
+                            log.error("Block validation failed at height {}", block.getHeight());
+                            return false;
+                        }
+                        System.out.println(Utils.YELLOW + "Synchronized block at height: " + block.getHeight() + Utils.RESET);
+                    }
+
+                    // Add to chain and process state
+                    processBlockState(block);
+                    finalizedBlockHeight = block.getHeight();
+                    lastFinalizedBlock = block;
+                    currentHeight++;
+                }
+
+                log.info("Successfully synchronized blockchain with {} blocks", finalizedBlockHeight + 1);
+                synchronizing = false;
+                return true;
+            } finally {
+                blockProcessingLock.unlock();
+            }
+        } catch (Exception e) {
+            log.error("Error synchronizing new node: {}, at height: "+ currentHeight, e.getMessage());
+            synchronizing = false;
+            return false;
+        }
+    }
+
+
     public void startMining() {
         try {
             log.info("Starting mining");
@@ -261,8 +334,8 @@ public class BlockchainService {
     }
 
     private void finalizeBlock() {
-        if (finalizedBlockChain.get(finalizedBlockChain.size() - 1).getHeight() - finalizedBlockHeight > 3) {
-            Block blockAtHeight = null;
+        if (!finalizedBlockChain.isEmpty() && finalizedBlockChain.get(finalizedBlockChain.size() - 1).getHeight() - finalizedBlockHeight > 3) {
+            Block blockAtHeight= null;
 
             for (int i = 0; i < finalizedBlockChain.size(); i++) {
                 if (finalizedBlockChain.get(i).getHeight() == finalizedBlockHeight) {
@@ -360,79 +433,96 @@ public class BlockchainService {
     }
 
 
-    public void timelordAlgorithm(Block block) {
+    public boolean timelordAlgorithm(Block block) {
+        if(finalizedBlockChain.isEmpty()){
+            syncNewNode();
+            return false;
+        }
+
         Block lastFinalizedBlock = finalizedBlockChain.getLast();
+
         if (block.equals(lastFinalizedBlock)) {
-            return;
+            return false;
         }
         if (!validateSignature(block)) {
-            return;
+            return false;
         }
 
         if (block.getHeight() == lastFinalizedBlock.getHeight()) {
             //Caso de ultimo bloco estar a mesma height do bloco recebido, substituir e extender
             if (!blockIsBetter(block, lastFinalizedBlock)) {
                 //System.out.println("Block not better " + Hex.toHexString(block.calculateHash()) + " : " + Hex.toHexString(lastFinalizedBlock.calculateHash()));
-                return;
+                return false;
             }
             //Check if the new block extends the block with height - 1 which is the before last finalized block
             if (!(extendsChain(block, finalizedBlockChain.get(finalizedBlockChain.size() - 2))
                     && validatePoS(block, finalizedBlockChain.get(finalizedBlockChain.size() - 2)))) {
                 System.out.println("Not Extending chain or POS invalid");
-                return; //Se nao estender a chain
+                return false; //Se nao estender a chain
             }
 
             if (!validatePoT(block)) {
                 System.out.println("Pot invalid");
-                return;
+                return false;
             }
             //IF a new Block is received and it is better than the last finalized block, we swap and extend the new one
-            //Note that we only validate the state but not execute
             if (!swapAndRollBlackBlock(lastFinalizedBlock, block)) {
                 System.out.println("Failed Validating and executing1");
-                return;
+                return false;
             }
+            if (synchronizing) {
+                return true;
+            }
+
             if (nodeConfig.isTimelord()) {
                 extendFinalizedBlock(block);
             } else {
                 extendNonFinalizedBlock(block);
             }
+            return true;
         } else if (block.getHeight() == lastFinalizedBlock.getHeight() + 1) {
             //Caso em que recebemos o finalizado mas ainda estamos a minar o proximo
             if (blockBeingMined != null) {
                 if (!blockIsBetter(block, blockBeingMined)) {
                     //System.out.println("Block not better being mined" + Hex.toHexString(block.calculateHash()) + " : " +
                     //  Hex.toHexString(blockBeingMined.calculateHash()));
-                    return;
+                    return false;
                 }
             }
             if (!extendsChain(block, lastFinalizedBlock)) {
                 System.out.println("Not Extending chain2:" + block.getHeight() + " " + lastFinalizedBlock.getHeight() + ":" + Hex.toHexString(block.calculateHash()) + " : " +
                         Hex.toHexString(lastFinalizedBlock.calculateHash()));
-                return;
+                return false;
             }
 
             if (!validatePoS(block, lastFinalizedBlock)) {
                 System.out.println("Pos invalid2");
-                return;
+                return false;
             }
 
             if (!validatePoT(block)) {
                 System.out.println("Pot invalid2");
-                return;
+                return false;
             }
             //if a new block is received we validate and execute it
             if (!processBlockState(block)) {
                 System.out.println("Failed Validating and executing2");
-                return;
+                return false;
+            }
+
+            if (synchronizing) {
+                return true;
             }
             if (nodeConfig.isTimelord()) {
                 extendFinalizedBlock(block);
             } else {
                 extendNonFinalizedBlock(block);
             }
+            return true;
+        }else if(block.getHeight() > lastFinalizedBlock.getHeight() + 1){
+           syncNewNode();
         }
-
+        return false;
     }
 
     public boolean swapAndRollBlackBlock(Block blockSwapped, Block newBlock) {
@@ -474,15 +564,15 @@ public class BlockchainService {
             addTransaction(transaction);
         }
         lastExecutedBlockHeight = newBlock.getHeight();
-        /*
-        if(blockchainState.validateBlockTransactions(newBlock)){
-            finalizedBlockChain.removeLast();
-            if(lastExecutedBlockHeight == newBlock.getHeight()){
-                blockchainState.rollBackBlock(blockSwapped);
-                lastExecutedBlockHeight--;
-            }
+            /*
+            if(blockchainState.validateBlockTransactions(newBlock)){
+                finalizedBlockChain.removeLast();
+                if(lastExecutedBlockHeight == newBlock.getHeight()){
+                    blockchainState.rollBackBlock(blockSwapped);
+                    lastExecutedBlockHeight--;
+                }
 
-        }*/
+            }*/
         return true;
     }
 
@@ -569,25 +659,30 @@ public class BlockchainService {
         currentVdfTask.start();
     }
 
-    public void validateGenesisBlock(Block block) {
+    public boolean validateGenesisBlock(Block block) {
         if (finalizedBlockChain.size() == 1) {
             //Verify if our genesis being possibly mined is better than the one we have if no ignore, if yes validate
             // and substitute
             Block blockBeingMined = finalizedBlockChain.get(0);
             if (PoS.proofQuality(block.getPosProof(), block.getPosProof().getChallenge(), block.getMinerPublicKey()) <=
                     PoS.proofQuality(blockBeingMined.getPosProof(), blockBeingMined.getPosProof().getChallenge(), blockBeingMined.getMinerPublicKey())) {
-                return;
+                return false;
             }
         }
         if (validateSignature(block) && validatePoT(block) && validatePoS(block, null)) {
             finalizedBlockChain.clear();
             processBlockState(block);
+            if (synchronizing) {
+                return true;
+            }
             if (nodeConfig.isTimelord()) {
                 extendFinalizedBlock(block);
             } else {
                 extendNonFinalizedBlock(block);
             }
+            return true;
         }
+        return false;
     }
 
     private boolean extendsChain(Block block, Block lastFinalizedBlock) {
@@ -621,8 +716,8 @@ public class BlockchainService {
     }
 
     public ResponseEntity<String> receiveBlock(Block block) {
-       /* Thread t = new Thread(() -> deliverBlock(block));
-        t.start();*/
+           /* Thread t = new Thread(() -> deliverBlock(block));
+            t.start();*/
         processingExecutor.submit(() -> processBlock(block));
         return ResponseEntity.ok("Block received");
     }

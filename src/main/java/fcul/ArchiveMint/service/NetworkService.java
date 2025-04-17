@@ -1,6 +1,5 @@
 package fcul.ArchiveMint.service;
 
-import com.google.gson.Gson;
 import fcul.ArchiveMint.configuration.NodeConfig;
 import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.transactions.Transaction;
@@ -13,11 +12,10 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-
 
 @Service
 @Data
@@ -26,62 +24,117 @@ public class NetworkService {
 
     @Autowired
     private NodeConfig nodeConfig;
+
     @Value("${server.port}")
     private String ownPort;
 
+    private ExecutorService networkExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private List<String> peers;
+    private RestTemplate restTemplate = new RestTemplate();
 
     @PostConstruct
     public void init() {
         peers = nodeConfig.getSeedNodes();
+        if (!getPeers().contains(getPeerAddress())) {
+            peers.add(getPeerAddress());
+        }
+        broadcastPeerAddress(getPeerAddress());
+        requestPeersFromSeed(nodeConfig.getSeedNodes().get(0));
     }
 
-    public ExecutorService networkExecutor = Executors.newVirtualThreadPerTaskExecutor();
-    private List<String> peers;
-    private RestTemplate restTemplate = new RestTemplate();
+    public <T> void broadcast(T data, String endpoint) {
+        for (String peer : peers) {
+            try {
+                int port = Integer.parseInt(peer.split(":")[2]);
+                if (port == Integer.parseInt(ownPort)) {
+                    continue;
+                }
+                networkExecutor.execute(() -> sendToPeer(peer, data, endpoint));
+
+            } catch (Exception e) {
+                log.error("Error broadcasting to peer {}: {}", peer, e.getMessage());
+            }
+        }
+    }
+
+    private <T> String sendToPeer(String peer, T data, String endpoint) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<T> request = new HttpEntity<>(data, headers);
+            ResponseEntity<String> response = restTemplate.exchange(
+                    peer + endpoint,
+                    HttpMethod.POST,
+                    request,
+                    String.class
+            );
+            return response.getBody();
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
 
     public void broadcastBlock(Block block) {
-        for (String peer : peers) {
-            int port = Integer.parseInt(peer.split(":")[2]);
-            if (port == Integer.parseInt(ownPort)) {
-                continue;
+        broadcast(block, "/blockchain/sendBlock");
+    }
+
+    public void broadcastTransaction(Transaction transaction) {
+        broadcast(transaction, "/blockchain/sendTransaction");
+    }
+
+    public void broadcastPeerAddress(String peerAddress) {
+        if (!peers.contains(peerAddress)) {
+            peers.add(peerAddress);
+            log.info("Added new peer address: {}", peerAddress);
+        }
+        broadcast(peerAddress, "/blockchain/addPeer");
+    }
+
+    public void addPeerAddress(String peerAddress) {
+        synchronized (peers) {
+            if (!peers.contains(peerAddress) && !peerAddress.endsWith(":" + ownPort)) {
+                peers.add(peerAddress);
+                log.info("Saved new peer address: {}", peerAddress);
+                broadcastPeerAddress(peerAddress);
             }
-            networkExecutor.execute(() -> sendBlockToPeer(peer, block));
         }
     }
 
-    public void broadcastTransaction(Transaction transaction){
-        for (String peer : peers) {
-            int port = Integer.parseInt(peer.split(":")[2]);
-            if (port == Integer.parseInt(ownPort)) {
-                continue;
-            }
-            networkExecutor.execute(() -> sendTransactionToPeer(peer, transaction));
-        }
+    public String getPeerAddress() {
+        return nodeConfig.getFarmerAddress() + ":" + ownPort;
     }
 
-
-    public void sendBlockToPeer(String peer, Block block) {
+    public boolean requestPeersFromSeed(String seedNodeUrl) {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            HttpEntity<Block> request = new HttpEntity<>(block, headers);
-            ResponseEntity<?> response = restTemplate.exchange(peer + "/blockchain/sendBlock", HttpMethod.POST,
-                    request, String.class);
-            //restTemplate.postForObject(peer + "/blockchain/sendBlock", block, Block.class);
-        } catch (Exception ignored) {
-        }
-    }
+            ResponseEntity<String[]> response = restTemplate.exchange(
+                    seedNodeUrl + "/blockchain/getPeers",
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    String[].class
+            );
 
-    public void sendTransactionToPeer(String peer, Transaction transaction){
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+            if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
+                log.error("Failed to fetch peers from seed node: {}", response.getStatusCode());
+                return false;
+            }
 
-            HttpEntity<Transaction> request = new HttpEntity<>(transaction, headers);
+            String[] receivedPeers = response.getBody();
+            // Update local peers list, avoiding duplicates and own address
+            for (String peer : receivedPeers) {
+                if (!peers.contains(peer) && !peer.endsWith(":" + ownPort)) {
+                    peers.add(peer);
+                    log.info("Added peer from seed node: {}", peer);
+                }
+            }
 
-            ResponseEntity<String> response = restTemplate.exchange(peer + "/blockchain/sendTransaction", HttpMethod.POST, request , String.class);
-        } catch (Exception ignored) {
+            return true;
+        } catch (Exception e) {
+            log.error("Error requesting peers from seed node: {}", e.getMessage());
+            return false;
         }
     }
 }

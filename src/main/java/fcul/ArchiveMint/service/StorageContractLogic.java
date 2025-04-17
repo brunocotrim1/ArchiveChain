@@ -48,7 +48,7 @@ public class StorageContractLogic implements Serializable {
             }
             if (!verifyStorageContract(contract, Hex.decodeHex(submission.getStorerPublicKey()),
                     keyManager.getFccnPublicKey())) {
-                System.out.println("Invalid storage contract");
+                //System.out.println("Invalid storage contract");
                 return false;
             }
             return true;
@@ -63,7 +63,7 @@ public class StorageContractLogic implements Serializable {
             StorageContract contract = null;
             List<StorageContract> storageContractList = storageContracts.get(fileProofTransaction.getFileProof().getFileUrl());
             if (storageContractList == null) {
-                System.out.println("No contract for this file");
+                //System.out.println("No contract for this file");
                 return false;
             }
             for (StorageContract storageContract : storageContractList) {
@@ -74,7 +74,7 @@ public class StorageContractLogic implements Serializable {
                 }
             }
             if (contract == null) {
-                System.out.println("No contract for this file");
+                //System.out.println("No contract for this file");
                 return false;
             }
             if (!CryptoUtils.ecdsaVerify(Hex.decodeHex(fileProofTransaction.getStorerSignature()),
@@ -91,12 +91,12 @@ public class StorageContractLogic implements Serializable {
 
             FileProvingWindow window = provingWindows.get(Hex.encodeHexString(contract.getHash()));
             if (window == null) {
-                System.out.println("No window for this contract");
+                //System.out.println("No window for this contract");
                 return false;
             }
             if (window.getStartBlockIndex() != fileProofTransaction.getFileProof().getStartBlockIndex() ||
                     window.getEndBlockIndex() != fileProofTransaction.getFileProof().getEndBlockIndex()) {
-                System.out.println("Invalid window");
+                //System.out.println("Invalid window");
                 return false;
             }
 
@@ -104,7 +104,7 @@ public class StorageContractLogic implements Serializable {
             byte[] root = Hex.decodeHex(contract.getMerkleRoot());
             if (!posService.verifyFileProof(fileProofTransaction.getFileProof(), challenge,
                     root, contract.getFileLength())) {
-                System.out.println("Invalid proof");
+                //System.out.println("Invalid proof");
                 return false;
             }
             //System.out.println("Valid file proof");
@@ -164,7 +164,7 @@ public class StorageContractLogic implements Serializable {
                 throw new RuntimeException("Window not found");
             }
             if (expiringContracts.remove(window)) {
-                System.out.println("Window removed from expiring contracts");
+                //System.out.println("Window removed from expiring contracts");
             }
             if (provingWindows.remove(fileProofTransaction.getFileProof().getStorageContractHash()) == null) {
                 throw new RuntimeException("Window not found");
@@ -181,7 +181,7 @@ public class StorageContractLogic implements Serializable {
             fileProvingWindows.putIfAbsent(contractHash, new ArrayList<>());
             fileProvingWindows.get(contractHash).add(newWindow);
 
-            System.out.println("Processed file proof: " + fileProofTransaction);
+            //System.out.println("Processed file proof: " + fileProofTransaction);
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException(e);
@@ -261,7 +261,7 @@ public class StorageContractLogic implements Serializable {
                     currentMinerWindows.add(window);
                 }
                 window.setState(FileProvingWindowState.PROVING);
-                System.out.println("Upcoming window: " + window);
+                //System.out.println("Upcoming window: " + window);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -277,7 +277,7 @@ public class StorageContractLogic implements Serializable {
         }
         for (FileProvingWindow window : expiringNow) {
             window.setState(FileProvingWindowState.FAILED);
-            System.out.println("Expired window: " + window);
+            //System.out.println("Expired window: " + window);
         }
     }
 
