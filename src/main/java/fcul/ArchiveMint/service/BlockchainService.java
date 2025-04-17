@@ -57,7 +57,7 @@ public class BlockchainService {
     private List<Transaction> pendingTransactions = new ArrayList<>();
 
     private WesolowskiVDF vdf = new WesolowskiVDF();
-    private int VDF_ITERATIONS = 250000;
+    private int VDF_ITERATIONS = 500000;//About 20 seconds, still need difficulty reset implementation
     private Thread currentVdfTask = null;
 
     private byte[] genesisChallenge = Hex.decode("ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb");
@@ -208,7 +208,7 @@ public class BlockchainService {
 
 
     public boolean syncNewNode() {
-        String seedNodeUrl = nodeConfig.getSeedNodes().get(0);
+        String seedNodeUrl = net.getOriginalSeedNode();
         synchronizing = true;
         long currentHeight = 0;
         try {
@@ -429,6 +429,7 @@ public class BlockchainService {
                 block.getTransactions()));
 
         restartThread(block);
+        net.broadcastBlock(block);
         //System.out.println("Block swapped non finalized");
     }
 
@@ -479,6 +480,7 @@ public class BlockchainService {
             } else {
                 extendNonFinalizedBlock(block);
             }
+            net.broadcastBlock(block);
             return true;
         } else if (block.getHeight() == lastFinalizedBlock.getHeight() + 1) {
             //Caso em que recebemos o finalizado mas ainda estamos a minar o proximo
@@ -518,9 +520,10 @@ public class BlockchainService {
             } else {
                 extendNonFinalizedBlock(block);
             }
+            net.broadcastBlock(block);
             return true;
         }else if(block.getHeight() > lastFinalizedBlock.getHeight() + 1){
-           syncNewNode();
+            syncNewNode();
         }
         return false;
     }
@@ -680,6 +683,7 @@ public class BlockchainService {
             } else {
                 extendNonFinalizedBlock(block);
             }
+            net.broadcastBlock(block);
             return true;
         }
         return false;
@@ -718,7 +722,10 @@ public class BlockchainService {
     public ResponseEntity<String> receiveBlock(Block block) {
            /* Thread t = new Thread(() -> deliverBlock(block));
             t.start();*/
-        processingExecutor.submit(() -> processBlock(block));
+        processingExecutor.submit(() -> {
+                    processBlock(block);
+                }
+        );
         return ResponseEntity.ok("Block received");
     }
 

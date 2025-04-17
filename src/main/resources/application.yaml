@@ -10,11 +10,10 @@ app:
   storagePath: ./nodes/${app.id}
   filesToPlotPath: ./nodes/files
   farmerAddress: "http://localhost"
+  #Include the local node http://localhost:8080 and the main seed node
   seedNodes:
-    - "http://localhost:8080"
-    - "http://localhost:8081"
-    - "http://localhost:8082"
-    - "http://localhost:8083"
+    - "http://localhost:8080" # Local node
+    - "http://localhost:8081" # Main seed node
   fccnPublicKey: "3059301306072a8648ce3d020106082a8648ce3d03010703420004e4a88d98f5ece99dae11bd4309307557e24876c2d389932c7b83f4c6012c41c803638b9aa38257f33d0a4137c9371fd59c13536ff807fa80261c8596d717d493"
   fccnNetworkAddress: "http://localhost:80"
   dedicatedStorage: 5000000000 # 5GB

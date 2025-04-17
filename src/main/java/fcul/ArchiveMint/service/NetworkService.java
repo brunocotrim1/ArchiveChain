@@ -12,6 +12,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -34,12 +35,13 @@ public class NetworkService {
 
     @PostConstruct
     public void init() {
-        peers = nodeConfig.getSeedNodes();
+        peers = new ArrayList<>(nodeConfig.getSeedNodes());
         if (!getPeers().contains(getPeerAddress())) {
             peers.add(getPeerAddress());
         }
         broadcastPeerAddress(getPeerAddress());
-        requestPeersFromSeed(nodeConfig.getSeedNodes().get(0));
+        requestPeersFromSeed(nodeConfig.getSeedNodes().get(1));
+        System.out.println(Arrays.toString(peers.toArray()));
     }
 
     public <T> void broadcast(T data, String endpoint) {
@@ -86,7 +88,6 @@ public class NetworkService {
     public void broadcastPeerAddress(String peerAddress) {
         if (!peers.contains(peerAddress)) {
             peers.add(peerAddress);
-            log.info("Added new peer address: {}", peerAddress);
         }
         broadcast(peerAddress, "/blockchain/addPeer");
     }
@@ -95,7 +96,6 @@ public class NetworkService {
         synchronized (peers) {
             if (!peers.contains(peerAddress) && !peerAddress.endsWith(":" + ownPort)) {
                 peers.add(peerAddress);
-                log.info("Saved new peer address: {}", peerAddress);
                 broadcastPeerAddress(peerAddress);
             }
         }
@@ -103,6 +103,14 @@ public class NetworkService {
 
     public String getPeerAddress() {
         return nodeConfig.getFarmerAddress() + ":" + ownPort;
+    }
+    public String getOriginalSeedNode(){
+        for(String seedNode : nodeConfig.getSeedNodes()){
+            if(!seedNode.equals(getPeerAddress())){
+                return seedNode;
+            }
+        }
+        return null;
     }
 
     public boolean requestPeersFromSeed(String seedNodeUrl) {
@@ -127,7 +135,6 @@ public class NetworkService {
             for (String peer : receivedPeers) {
                 if (!peers.contains(peer) && !peer.endsWith(":" + ownPort)) {
                     peers.add(peer);
-                    log.info("Added peer from seed node: {}", peer);
                 }
             }
 
