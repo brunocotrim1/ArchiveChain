@@ -43,7 +43,7 @@ public class KeyManager {
     public void init() {
         if (Files.exists(Paths.get(nodeConfig.getStoragePath() + "/mnemonic.txt"))) {
             loadKeys();
-            registerFCCN();
+            //registerFCCN();
             return;
         }
         //I will use ECDSA algoritmh since it provides similar security to RSA with smaller key size

@@ -207,6 +207,11 @@ public class BlockchainService {
     ////////////////////////////  Consensus Related Methods ////////////////////////////
 
 
+    public boolean reloadBlockchain(){
+
+    }
+
+
     public boolean syncNewNode() {
         String seedNodeUrl = net.getOriginalSeedNode();
         synchronizing = true;

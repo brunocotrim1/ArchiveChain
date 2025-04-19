@@ -48,4 +48,5 @@ public class NodeConfig {
     private String fccnNetworkAddress;
     private long dedicatedStorage;
     private String farmerAddress;
+    private boolean initializeStorage;
 }
