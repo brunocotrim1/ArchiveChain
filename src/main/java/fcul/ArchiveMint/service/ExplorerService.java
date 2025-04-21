@@ -20,8 +20,6 @@ import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static fcul.ArchiveMintUtils.Model.transactions.TransactionType.CURRENCY_TRANSACTION;
-
 @Service
 public class ExplorerService {
 
@@ -44,6 +42,7 @@ public class ExplorerService {
         }
         wd.setStorageContracts(contracts);
         fillWalletDetailsBlock(wd, address);
+        wd.setTransactions(wd.getTransactions().reversed());
         ConcurrentHashMap<String, List<Coin>> coinsPerWallet = blockchainState.getCoinLogic().getCoinMap();
         if (coinsPerWallet.containsKey(address)) {
             wd.setBalance(coinsPerWallet.get(address).stream().map(Coin::getValue).reduce(BigInteger.ZERO, BigInteger::add));
@@ -62,8 +61,8 @@ public class ExplorerService {
                 return;
             }
 
-            for (int i = 0; i <= blockchainState.getLastExecutedBlock().getHeight(); i++) {
-                Block block = blockchainState.readBlockFromFile(i);
+            for (long i = blockchainState.getLastExecutedBlock().getHeight(); i == Math.max(blockchainState.getLastExecutedBlock().getHeight()-1000, 0L); i--) {
+                Block block = blockchainState.readBlockFromFile(i,false);
                 String minerPk = Hex.encodeHexString(block.getMinerPublicKey());
                 String addressMiner = CryptoUtils.getWalletAddress(minerPk);
                 if (addressMiner.equals(address)) {
@@ -119,7 +118,7 @@ public class ExplorerService {
             long lastExecutedHeight = blockchainState.getLastExecutedBlock().getHeight();
             List<Block> blockList = new ArrayList<>();
             for (long i = lastExecutedHeight; i >= Math.max(lastExecutedHeight - limit, 0); i--) {
-                Block block = blockchainState.readBlockFromFile(i);
+                Block block = blockchainState.readBlockFromFile(i,false);
                 if (block == null) {
                     return ResponseEntity.status(500).build();
                 }
@@ -179,7 +178,7 @@ public class ExplorerService {
             if (index > lastExecutedHeight) {
                 return ResponseEntity.status(404).build();
             }
-            Block block = blockchainState.readBlockFromFile(index);
+            Block block = blockchainState.readBlockFromFile(index,false);
             if (block == null) {
                 return ResponseEntity.status(404).build();
             }

@@ -106,7 +106,7 @@ public class BlockchainController {
             if (height > blockHeight) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
-            Block block = state.readBlockFromFile(height);
+            Block block = state.readBlockFromFile(height,false);
             return ResponseEntity.ok(block);
         } catch (IOException | ClassNotFoundException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();

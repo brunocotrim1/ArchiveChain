@@ -273,18 +273,25 @@ public class BlockchainState {
         oos.close();
     }
 
-    public Block readBlockFromFile(long height) throws IOException, ClassNotFoundException {
-        if(lastExecutedBlock == null){
+    public Block readBlockFromFile(long height,boolean reload) throws IOException, ClassNotFoundException {
+        try {
+            if(!reload){
+                if (lastExecutedBlock == null) {
+                    return null;
+                }
+                if (height > lastExecutedBlock.getHeight()) {
+                    return null;
+                }
+            }
+
+            String blockPath = nodeConfig.getStoragePath() + "/blocks/" + height + ".block";
+            ObjectInputStream ois = new ObjectInputStream(new FileInputStream(blockPath));
+            Block block = (Block) ois.readObject();
+            ois.close();
+            return block;
+        }catch (Exception e){
             return null;
         }
-        if(height>lastExecutedBlock.getHeight()){
-            return null;
-        }
-        String blockPath = nodeConfig.getStoragePath() + "/blocks/" + height + ".block";
-        ObjectInputStream ois = new ObjectInputStream(new FileInputStream(blockPath));
-        Block block = (Block) ois.readObject();
-        ois.close();
-        return block;
     }
 
     public void storeStateInDisk(CoinLogic coinLogic, StorageContractLogic storageContractLogic, long height)

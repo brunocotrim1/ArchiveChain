@@ -94,7 +94,7 @@ public class ExplorerController {
     @GetMapping("/getStorageContract")
     public ResponseEntity<StorageContract> getStorageContract(@RequestParam String contractHash,
                                                               @RequestParam String fileUrl) {
-
+        fileUrl = URLDecoder.decode(fileUrl, StandardCharsets.UTF_8);
         return explorerService.getStorageContract(contractHash, fileUrl);
     }
 

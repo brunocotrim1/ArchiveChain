@@ -14,6 +14,7 @@ import fcul.ArchiveMintUtils.Utils.Utils;
 import fcul.ArchiveMintUtils.Utils.wesolowskiVDF.ProofOfTime;
 import fcul.ArchiveMintUtils.Utils.wesolowskiVDF.WesolowskiVDF;
 import fcul.wrapper.FileEncodeProcess;
+import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.encoders.Hex;
@@ -32,6 +33,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 @Service
@@ -57,7 +59,7 @@ public class BlockchainService {
     private List<Transaction> pendingTransactions = new ArrayList<>();
 
     private WesolowskiVDF vdf = new WesolowskiVDF();
-    private int VDF_ITERATIONS = 500000;//About 20 seconds, still need difficulty reset implementation
+    private int VDF_ITERATIONS = 150000;//500000;//About 20 seconds, still need difficulty reset implementation
     private Thread currentVdfTask = null;
 
     private byte[] genesisChallenge = Hex.decode("ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb");
@@ -71,32 +73,36 @@ public class BlockchainService {
     private final ReentrantLock blockProcessingLock = new ReentrantLock();
     private final Map<Integer, ArrayList<Block>> cacheFutureBlocks = new HashMap<>();
     private volatile boolean synchronizing = false;
+    private AtomicInteger archiveCounter = new AtomicInteger(0);
+    private BigInteger archivedStorage = BigInteger.ZERO;
 
     public ResponseEntity<String> archiveFile(MultipartFile file, StorageContract contract) {
         try {
 
-            long availableSpace = nodeConfig.getDedicatedStorage();
-            if (availableSpace < file.getSize()) {
+            if (archivedStorage.add(BigInteger.valueOf(file.getSize())).compareTo(BigInteger.valueOf(nodeConfig.getDedicatedStorage())) > 0) {
+                System.out.println(Utils.RED + "Not enough space to store file available" + Utils.RESET);
                 return ResponseEntity.status(500).body("Not enough space to store file");
             }
             byte[] fileData = file.getInputStream().readAllBytes();
             Transaction transaction = blockchainState.validateContractSubmission(fileData, contract,
                     keyManager);
 
-            nodeConfig.setDedicatedStorage(availableSpace - file.getSize());
-
+            archiveCounter.incrementAndGet();
             plotter.submit(() -> {
                 try {
-
                     if (contract.getStorageType().equals(StorageType.AES)) {
                         aesProcess(fileData, contract.getFileUrl(), transaction);
                     } else {
                         addTransaction(vdeProccess(fileData, file.getOriginalFilename(), contract));
                     }
-
+                    archivedStorage = archivedStorage.add(BigInteger.valueOf(file.getSize()));
                 } catch (Exception e) {
                     e.printStackTrace();
                     throw new RuntimeException(e);
+
+                } finally {
+                    System.out.println("Archive Counter: " + archiveCounter.get());
+                    archiveCounter.decrementAndGet();
                 }
             });
 
@@ -207,15 +213,54 @@ public class BlockchainService {
     ////////////////////////////  Consensus Related Methods ////////////////////////////
 
 
-    public boolean reloadBlockchain(){
-
+    @PostConstruct
+    public void onInit() {
+        synchronizing = true;
+        reloadState();
+        syncNewNode(finalizedBlockChain.isEmpty() ? -1 : finalizedBlockChain.getLast().getHeight());
+        synchronizing = false;
+        if (nodeConfig.isTimelord()) {
+            if (!finalizedBlockChain.isEmpty()) {
+                extendFinalizedBlock(finalizedBlockChain.getLast());
+            }else {
+                startMining();
+            }
+        }
     }
 
+    public void reloadState() {
+        try {
+            long currentHeight = 0;
+            Block block = blockchainState.readBlockFromFile(0, true);
+            if (block == null) {
+                System.out.println(Utils.RED + "No Blocks to reload" + Utils.RESET);
+                return;
+            }
+            while (block != null) {
 
-    public boolean syncNewNode() {
+                block.setHash(null);
+                block.calculateHash();
+                if (block.getHeight() == 0) {
+                    validateGenesisBlock(block);
+                } else {
+                    if (!timelordAlgorithm(block)) {
+                        System.out.println(Utils.RED + "Failed to reload block at height: " + block.getHeight() + Utils.RESET);
+                    } else {
+                        System.out.println(Utils.YELLOW + "Reloaded block at height: " + block.getHeight() + Utils.RESET);
+                    }
+                }
+                finalizeBlock();
+                currentHeight++;
+                block = blockchainState.readBlockFromFile(currentHeight, true);
+            }
+        } catch (Exception e) {
+        }
+    }
+
+    public boolean syncNewNode(long currentHeightP) {
         String seedNodeUrl = net.getOriginalSeedNode();
         synchronizing = true;
-        long currentHeight = 0;
+        long currentHeight = currentHeightP + 1;
         try {
             System.out.println(Utils.YELLOW + "Synchronizing with seed node: " + seedNodeUrl + Utils.RESET);
             RestTemplate restTemplate = new RestTemplate();
@@ -225,7 +270,6 @@ public class BlockchainService {
             // Start with the genesis block (height 0)
             blockProcessingLock.lock();
             try {
-                finalizedBlockChain.clear(); // Clear existing chain for new node
                 while (true) {
                     // Request block at current height
                     ResponseEntity<Block> response = restTemplate.exchange(
@@ -263,11 +307,7 @@ public class BlockchainService {
                         }
                         System.out.println(Utils.YELLOW + "Synchronized block at height: " + block.getHeight() + Utils.RESET);
                     }
-
-                    // Add to chain and process state
-                    processBlockState(block);
-                    finalizedBlockHeight = block.getHeight();
-                    lastFinalizedBlock = block;
+                    finalizeBlock();
                     currentHeight++;
                 }
 
@@ -278,7 +318,7 @@ public class BlockchainService {
                 blockProcessingLock.unlock();
             }
         } catch (Exception e) {
-            log.error("Error synchronizing new node: {}, at height: "+ currentHeight, e.getMessage());
+            log.error("Error synchronizing new node: {}, at height: " + currentHeight, e.getMessage());
             synchronizing = false;
             return false;
         }
@@ -340,7 +380,7 @@ public class BlockchainService {
 
     private void finalizeBlock() {
         if (!finalizedBlockChain.isEmpty() && finalizedBlockChain.get(finalizedBlockChain.size() - 1).getHeight() - finalizedBlockHeight > 3) {
-            Block blockAtHeight= null;
+            Block blockAtHeight = null;
 
             for (int i = 0; i < finalizedBlockChain.size(); i++) {
                 if (finalizedBlockChain.get(i).getHeight() == finalizedBlockHeight) {
@@ -440,8 +480,8 @@ public class BlockchainService {
 
 
     public boolean timelordAlgorithm(Block block) {
-        if(finalizedBlockChain.isEmpty()){
-            syncNewNode();
+        if (finalizedBlockChain.isEmpty()) {
+            syncNewNode(-1);
             return false;
         }
 
@@ -527,8 +567,8 @@ public class BlockchainService {
             }
             net.broadcastBlock(block);
             return true;
-        }else if(block.getHeight() > lastFinalizedBlock.getHeight() + 1){
-            syncNewNode();
+        } else if (block.getHeight() > lastFinalizedBlock.getHeight() + 1) {
+            syncNewNode(lastFinalizedBlock.getHeight());
         }
         return false;
     }
