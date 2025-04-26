@@ -41,8 +41,11 @@ public class ExplorerController {
     }
 
     @GetMapping("/storedFiles")
-    public ResponseEntity<List<String>> getStoredFiles() {
-        return explorerService.getStoredFiles();
+    public ResponseEntity<List<String>> getStoredFilesChunk(
+            @RequestParam int offset,
+            @RequestParam int limit,
+            @RequestParam(required = false) String fileName) {
+        return explorerService.getStoredFiles(offset, limit,fileName);
     }
 
     @GetMapping("/storageContractsChunk")

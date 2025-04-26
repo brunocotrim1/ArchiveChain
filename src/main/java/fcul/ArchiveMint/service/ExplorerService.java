@@ -11,12 +11,19 @@ import fcul.ArchiveMintUtils.Model.transactions.FileProofTransaction;
 import fcul.ArchiveMintUtils.Model.transactions.StorageContractSubmission;
 import fcul.ArchiveMintUtils.Model.transactions.Transaction;
 import fcul.ArchiveMintUtils.Utils.CryptoUtils;
+import jnr.ffi.Struct.socklen_t;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
 import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -26,6 +33,7 @@ public class ExplorerService {
     @Autowired
     private BlockchainState blockchainState;
 
+    private static final LevenshteinDistance levenshtein = new LevenshteinDistance();
 
     public ResponseEntity<WalletDetailsModel> getWalletDetails(String address) {
         WalletDetailsModel wd = new WalletDetailsModel();
@@ -60,8 +68,7 @@ public class ExplorerService {
             if (blockchainState.getLastExecutedBlock() == null) {
                 return;
             }
-
-            for (long i = blockchainState.getLastExecutedBlock().getHeight(); i == Math.max(blockchainState.getLastExecutedBlock().getHeight()-1000, 0L); i--) {
+            for (long i = blockchainState.getLastExecutedBlock().getHeight(); i>= Math.max(blockchainState.getLastExecutedBlock().getHeight()-1000, 0L); i--) {
                 Block block = blockchainState.readBlockFromFile(i,false);
                 String minerPk = Hex.encodeHexString(block.getMinerPublicKey());
                 String addressMiner = CryptoUtils.getWalletAddress(minerPk);
@@ -141,8 +148,37 @@ public class ExplorerService {
         return ResponseEntity.ok(walletBalances);
     }
 
-    public ResponseEntity<List<String>> getStoredFiles() {
-        return ResponseEntity.ok(blockchainState.getStorageContractLogic().getStorageContracts().keySet().stream().toList());
+
+    public ResponseEntity<List<String>> getStoredFiles(int offset, int limit, String fileName) {
+        List<String> allFiles;
+        if (fileName != null && !fileName.isEmpty()) {
+            allFiles = searchedFiles(fileName);
+        }else{
+            allFiles = blockchainState.getStorageContractLogic().getStorageContracts().keySet().stream().toList();
+        }
+        int toIndex = Math.min(offset + limit, allFiles.size());
+        if (offset >= allFiles.size()) {
+            return ResponseEntity.ok(Collections.emptyList());
+        }
+        List<String> chunk = allFiles.subList(offset, toIndex);
+        return ResponseEntity.ok(chunk);
+    }
+    
+    public List<String> searchedFiles(String fileName) {
+        fileName = URLDecoder.decode(fileName, StandardCharsets.UTF_8);
+        List<String> allFiles = blockchainState.getStorageContractLogic().getStorageContracts().keySet().stream().toList();
+        List<Map.Entry<String, Integer>> fileDistances = new ArrayList<>();
+        System.out.println("Searching for file: " + fileName);
+       for (int i = 0; i < allFiles.size(); i++) {
+            String file = allFiles.get(i);
+            String cleaned = file.replaceAll("^\\d{14}/https?://", "Hello");
+            int distance = levenshtein.apply(cleaned.toLowerCase(), fileName.toLowerCase());
+            fileDistances.add(new AbstractMap.SimpleEntry<>(file, distance));
+        }
+                return fileDistances.stream()
+                .sorted(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
     }
 
     public ResponseEntity<List<StorageContract>> getStorageContracts(String fileName, int offset, int limit) {

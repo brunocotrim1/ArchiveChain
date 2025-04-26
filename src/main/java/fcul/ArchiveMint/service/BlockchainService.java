@@ -59,7 +59,7 @@ public class BlockchainService {
     private List<Transaction> pendingTransactions = new ArrayList<>();
 
     private WesolowskiVDF vdf = new WesolowskiVDF();
-    private int VDF_ITERATIONS = 150000;//500000;//About 20 seconds, still need difficulty reset implementation
+    private int VDF_ITERATIONS = 1000000;//500000;//About 20 seconds, still need difficulty reset implementation
     private Thread currentVdfTask = null;
 
     private byte[] genesisChallenge = Hex.decode("ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb");
@@ -216,15 +216,26 @@ public class BlockchainService {
     @PostConstruct
     public void onInit() {
         synchronizing = true;
+        try {
+            posService.init();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        try{
         reloadState();
         syncNewNode(finalizedBlockChain.isEmpty() ? -1 : finalizedBlockChain.getLast().getHeight());
         synchronizing = false;
         if (nodeConfig.isTimelord()) {
             if (!finalizedBlockChain.isEmpty()) {
                 extendFinalizedBlock(finalizedBlockChain.getLast());
+                System.out.println(Utils.YELLOW + "Timelord started" + Utils.RESET);
             }else {
                 startMining();
             }
+        }}
+        catch (Exception e) {
+            e.printStackTrace();
+            throw e;
         }
     }
 

@@ -29,10 +29,8 @@ public class PosService {
     @Autowired
     KeyManager keyManager;
 
-    @PostConstruct
     public void init() throws Exception {
-        //Initial Plotting to boostrap the network
-        plotFile("test_3.txt");
+        plotFileData("BOOTSTRAP".getBytes(), "BOOTSTRAP.txt");
     }
 
     public void plotFile(String fileName) throws Exception {
