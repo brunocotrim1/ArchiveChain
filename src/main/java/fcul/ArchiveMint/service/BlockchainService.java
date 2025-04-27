@@ -19,6 +19,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.encoders.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -59,7 +60,8 @@ public class BlockchainService {
     private List<Transaction> pendingTransactions = new ArrayList<>();
 
     private WesolowskiVDF vdf = new WesolowskiVDF();
-    private int VDF_ITERATIONS = 1000000;//500000;//About 20 seconds, still need difficulty reset implementation
+    @Value("${app.initialVDFIterations}")
+    private int VDF_ITERATIONS = 200000;//1000000;//500000;//About 20 seconds, still need difficulty reset implementation
     private Thread currentVdfTask = null;
 
     private byte[] genesisChallenge = Hex.decode("ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb");

@@ -18,3 +18,4 @@ app:
   fccnNetworkAddress: "http://192.168.1.72:8085"
   dedicatedStorage: 50000000 #in bytes to Gb
   initializeStorage: true
+  initialVDFIterations: 200000
