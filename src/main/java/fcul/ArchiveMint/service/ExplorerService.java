@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigInteger;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -169,17 +170,55 @@ public class ExplorerService {
         List<String> allFiles = blockchainState.getStorageContractLogic().getStorageContracts().keySet().stream().toList();
         List<Map.Entry<String, Integer>> fileDistances = new ArrayList<>();
         System.out.println("Searching for file: " + fileName);
-       for (int i = 0; i < allFiles.size(); i++) {
-            String file = allFiles.get(i);
-            String cleaned = file.replaceAll("^\\d{14}/https?://", "Hello");
-            int distance = levenshtein.apply(cleaned.toLowerCase(), fileName.toLowerCase());
-            fileDistances.add(new AbstractMap.SimpleEntry<>(file, distance));
+        for (String file : allFiles) {
+            String cleaned = file.replaceAll("^\\d{14}/https?://", "");
+            String[] parts = cleaned.split("/", 2);
+            String domain = parts[0];
+            String path = parts.length > 1 ? parts[1] : "";
+        
+            String normalizedFileName = normalize(fileName);
+            String normalizedDomain = normalize(domain);
+            String normalizedPath = normalize(path);
+        
+            double domainSim = jaccardSimilarity(normalizedDomain, normalizedFileName);
+            double pathSim = jaccardSimilarity(normalizedPath, normalizedFileName);
+        
+            double combinedScore = 0.3 * domainSim + 0.7 * pathSim;
+        
+            // Flip similarity to distance for sorting (higher similarity = lower "distance")
+            double finalScore = 1.0 - combinedScore;
+        
+            fileDistances.add(new AbstractMap.SimpleEntry<>(file, (int)(finalScore * 100)));
         }
+        
                 return fileDistances.stream()
                 .sorted(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toList());
     }
+
+    private static String normalize(String input) {
+        return Normalizer.normalize(input, Normalizer.Form.NFD)
+                         .replaceAll("\\p{M}", "")
+                         .toLowerCase();
+    }
+    
+    private static double jaccardSimilarity(String a, String b) {
+        Set<String> setA = new HashSet<>(Arrays.asList(a.split("[-_/ .]")));
+        Set<String> setB = new HashSet<>(Arrays.asList(b.split("[-_/ .]")));
+    
+        setA.removeIf(String::isEmpty);
+        setB.removeIf(String::isEmpty);
+    
+        Set<String> intersection = new HashSet<>(setA);
+        intersection.retainAll(setB);
+    
+        Set<String> union = new HashSet<>(setA);
+        union.addAll(setB);
+    
+        return union.isEmpty() ? 0.0 : (double) intersection.size() / union.size();
+    }
+    
 
     public ResponseEntity<List<StorageContract>> getStorageContracts(String fileName, int offset, int limit) {
         List<StorageContract> allContracts;

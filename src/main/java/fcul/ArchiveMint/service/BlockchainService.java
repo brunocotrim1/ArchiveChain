@@ -218,6 +218,9 @@ public class BlockchainService {
     @PostConstruct
     public void onInit() {
         synchronizing = true;
+        if (nodeConfig.isTimelord()) {
+            System.out.println(Utils.GREEN + "Timelord started with " + this.VDF_ITERATIONS + " Iterations" + Utils.RESET);
+        }
         try {
             posService.init();
         } catch (Exception e) {
@@ -249,10 +252,12 @@ public class BlockchainService {
                 System.out.println(Utils.RED + "No Blocks to reload" + Utils.RESET);
                 return;
             }
+
             while (block != null) {
 
                 block.setHash(null);
                 block.calculateHash();
+                block.setQuality(posService.proofQuality(block.getPosProof(), block.getMinerPublicKey()));
                 if (block.getHeight() == 0) {
                     validateGenesisBlock(block);
                 } else {
@@ -365,6 +370,7 @@ public class BlockchainService {
     public void processBlock(Block block) {
         block.setHash(null);//To clear the hashField of the received block
         block.calculateHash();
+        block.setQuality(posService.proofQuality(block.getPosProof(), block.getMinerPublicKey()));
         blockProcessingLock.lock();
         try {
             for (Transaction transaction : block.getTransactions()) {
