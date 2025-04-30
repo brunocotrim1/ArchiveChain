@@ -20,3 +20,4 @@ app:
   dedicatedStorage: 50000000 #in bytes to Gb
   initializeStorage: true
   initialVDFIterations: 1500000
+  timelord: false

@@ -2,6 +2,7 @@ package fcul.ArchiveMint.service;
 
 import fcul.ArchiveMint.configuration.KeyManager;
 import fcul.ArchiveMint.configuration.NodeConfig;
+import fcul.ArchiveMint.configuration.NodeRegister;
 import fcul.ArchiveMintUtils.Model.Block;
 import fcul.ArchiveMintUtils.Model.Peer;
 import fcul.ArchiveMintUtils.Model.StorageContract;
@@ -54,6 +55,8 @@ public class BlockchainService {
 
     @Autowired
     private BlockchainState blockchainState;
+    @Autowired
+    private NodeRegister nodeRegister;
 
     private List<Peer> peers = new ArrayList<>();
     private final List<Block> finalizedBlockChain = new ArrayList<>();
@@ -226,19 +229,25 @@ public class BlockchainService {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        try{
-        reloadState();
-        syncNewNode(finalizedBlockChain.isEmpty() ? -1 : finalizedBlockChain.getLast().getHeight());
-        synchronizing = false;
-        if (nodeConfig.isTimelord()) {
-            if (!finalizedBlockChain.isEmpty()) {
-                extendFinalizedBlock(finalizedBlockChain.getLast());
-                System.out.println(Utils.YELLOW + "Timelord started" + Utils.RESET);
-            }else {
-                startMining();
+        try {
+            reloadState();
+            syncNewNode(finalizedBlockChain.isEmpty() ? -1 : finalizedBlockChain.getLast().getHeight());
+            synchronizing = false;
+            if (nodeConfig.isTimelord()) {
+                if (!finalizedBlockChain.isEmpty()) {
+                    extendFinalizedBlock(finalizedBlockChain.getLast());
+                    System.out.println(Utils.YELLOW + "Timelord started" + Utils.RESET);
+                } else {
+                    startMining();
+                }
             }
-        }}
-        catch (Exception e) {
+
+            if (!nodeRegister.registerFCCN()) {
+                System.exit(-1);
+            }else{
+                System.out.println(Utils.GREEN + "Node registered with FCCN" + Utils.RESET);
+            }
+        } catch (Exception e) {
             e.printStackTrace();
             throw e;
         }
