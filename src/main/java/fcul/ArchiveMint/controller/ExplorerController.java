@@ -107,8 +107,15 @@ public class ExplorerController {
     }
 
     @GetMapping("/getWalletDetails")
-    public ResponseEntity<WalletDetailsModel> getWalletDetails(@RequestParam String address) {
-        return explorerService.getWalletDetails(address);
+    public ResponseEntity<WalletDetailsModel> getWalletDetails(@RequestParam String address,
+                                                                @RequestParam int offset,
+                                                                @RequestParam int limit) {
+        return explorerService.getWalletDetails(address,offset,limit);
+    }
+
+    @GetMapping("/getLastBlockIndex")
+    public ResponseEntity<Long> getLastBlockIndex() {
+        return explorerService.getLastBlockIndex();
     }
 
     @GetMapping("/getStorageHistory")
