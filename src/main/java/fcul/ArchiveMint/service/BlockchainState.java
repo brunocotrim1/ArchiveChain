@@ -91,24 +91,17 @@ public class BlockchainState {
     }
 
 
-    public boolean addTransaction(Transaction transaction) {
+    public boolean addTransaction(List<Transaction> transactions,boolean isCensured) {
         synchronized (mempool) {
-            if (mempool.addTransaction(transaction)) {
-                net.broadcastTransaction(transaction);
+            if (mempool.addTransaction(transactions)) {
                 return true;
             }
+            net.broadcastTransactions(transactions,isCensured);
             return false;
         }
 
     }
 
-    public void addTransactions(List<Transaction> transactions) {
-        synchronized (mempool) {
-            for (Transaction transaction : transactions) {
-                mempool.addTransaction(transaction);
-            }
-        }
-    }
 
     public List<Transaction> getValidTransactions() {
         synchronized (mempool) {

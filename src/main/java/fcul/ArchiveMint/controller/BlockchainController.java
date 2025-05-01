@@ -64,8 +64,8 @@ public class BlockchainController {
     }
 
     @PostMapping("/sendTransaction")
-    public ResponseEntity<String> sendTransaction(@RequestBody Transaction transaction) {
-        return blockchainService.addTransaction(transaction);
+    public ResponseEntity<String> sendTransaction(@RequestBody List<Transaction> transactions,@RequestParam boolean isCensured) {
+        return blockchainService.addTransaction(transactions);
     }
 
     @GetMapping("/getCoins")

@@ -8,6 +8,7 @@ import org.mapdb.Serializer;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentNavigableMap;
@@ -40,12 +41,15 @@ public class Mempool {
         transactionQueue.addAll(transactionMap.values());
     }
 
-    public boolean addTransaction(Transaction transaction) {
-        if (transactionMap.containsKey(transaction.getTransactionId())) {
-            return false;
+    public boolean addTransaction(List<Transaction> transaction) {
+
+        for (Transaction tx : transaction) {
+            if (transactionMap.containsKey(tx.getTransactionId())) {
+                return false;
+            }
+            transactionQueue.add(tx);
+            transactionMap.put(tx.getTransactionId(), tx);
         }
-        transactionQueue.add(transaction);
-        transactionMap.put(transaction.getTransactionId(), transaction);
         db.commit(); // Persist changes
         return true;
     }

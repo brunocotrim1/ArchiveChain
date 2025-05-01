@@ -98,7 +98,10 @@ public class BlockchainService {
                     if (contract.getStorageType().equals(StorageType.AES)) {
                         aesProcess(fileData, contract.getFileUrl(), transaction);
                     } else {
-                        addTransaction(vdeProccess(fileData, file.getOriginalFilename(), contract));
+                        List<Transaction> transactions = new ArrayList<>();
+                        Transaction vdeTransaction = vdeProccess(fileData, file.getOriginalFilename(), contract);
+                        transactions.add(vdeTransaction);
+                        addTransaction(transactions);
                     }
                     archivedStorage = archivedStorage.add(BigInteger.valueOf(file.getSize()));
                 } catch (Exception e) {
@@ -122,7 +125,9 @@ public class BlockchainService {
     public void aesProcess(byte[] fileData, String fileUrl, Transaction t) throws Exception {
         System.out.println("AES File submitted to plotter, available space: " + nodeConfig.getDedicatedStorage());
         posService.plotFileData(fileData, fileUrl);
-        addTransaction(t);
+        List<Transaction> transactions = new ArrayList<>();
+        transactions.add(t);
+        addTransaction(transactions);
         System.out.println("Storage contract signed and verified!");
         // Assuming t is or contains StorageContractSubmission
         StorageContractSubmission storageContract = (StorageContractSubmission) t;
@@ -244,7 +249,7 @@ public class BlockchainService {
 
             if (!nodeRegister.registerFCCN()) {
                 System.exit(-1);
-            }else{
+            } else {
                 System.out.println(Utils.GREEN + "Node registered with FCCN" + Utils.RESET);
             }
         } catch (Exception e) {
@@ -382,9 +387,7 @@ public class BlockchainService {
         block.setQuality(posService.proofQuality(block.getPosProof(), block.getMinerPublicKey()));
         blockProcessingLock.lock();
         try {
-            for (Transaction transaction : block.getTransactions()) {
-                addTransaction(transaction);
-            }
+            addTransaction(block.getTransactions());
             if (block.getHeight() == 0 && finalizedBlockChain.size() <= 1) {
                 validateGenesisBlock(block);
             } else {
@@ -498,8 +501,8 @@ public class BlockchainService {
             currentVdfTask = null;
         }
 
-        blockchainState.addTransactions(blockchainState.getCensuredTransactions(blockBeingMined.getTransactions(),
-                block.getTransactions()));
+        blockchainState.addTransaction(blockchainState.getCensuredTransactions(blockBeingMined.getTransactions(),
+                block.getTransactions()),true);
 
         restartThread(block);
         net.broadcastBlock(block);
@@ -632,13 +635,11 @@ public class BlockchainService {
         }
 
         //ADD Transactions censured back into the mempool for future processing
-        blockchainState.addTransactions(blockchainState.getCensuredTransactions(blockSwapped.getTransactions(),
-                newBlock.getTransactions()));
+        blockchainState.addTransaction(blockchainState.getCensuredTransactions(blockSwapped.getTransactions(),
+                newBlock.getTransactions()),true);
 
-        List<Transaction> transactions = blockchainState.executeBlock(newBlock);
-        for (Transaction transaction : transactions) {
-            addTransaction(transaction);
-        }
+        List<Transaction> transactionsResultantOfExecution = blockchainState.executeBlock(newBlock);
+        addTransaction(transactionsResultantOfExecution);
         lastExecutedBlockHeight = newBlock.getHeight();
             /*
             if(blockchainState.validateBlockTransactions(newBlock)){
@@ -656,9 +657,7 @@ public class BlockchainService {
         if (blockchainState.validateBlockTransactions(block)) {
             finalizedBlockChain.add(block);
             List<Transaction> transactions = blockchainState.executeBlock(block);
-            for (Transaction transaction : transactions) {
-                addTransaction(transaction);
-            }
+            addTransaction(transactions);
             lastExecutedBlockHeight = block.getHeight();
             return true;
         }
@@ -802,11 +801,10 @@ public class BlockchainService {
         return ResponseEntity.ok("Block received");
     }
 
-    public ResponseEntity<String> addTransaction(Transaction transaction) {
-        if (!blockchainState.addTransaction(transaction)) {
+    public ResponseEntity<String> addTransaction(List<Transaction> transactions) {
+        if (!blockchainState.addTransaction(transactions,false)) {
             return ResponseEntity.ok("Transaction not added");
         }
-        net.broadcastTransaction(transaction);
         return ResponseEntity.ok("Transaction added and broadcasted");
     }
 

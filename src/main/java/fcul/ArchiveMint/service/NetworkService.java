@@ -7,17 +7,18 @@ import fcul.ArchiveMintUtils.Utils.Utils;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.binary.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,6 +37,10 @@ public class NetworkService {
     private List<String> peers;
     private RestTemplate restTemplate = new RestTemplate();
     private static final Pattern URL_PATTERN = Pattern.compile("^(https?://)((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}|(?:\\d{1,3}\\.){3}\\d{1,3})(?::\\d{1,5})?(?:/[^\\s]*)?$");
+
+    private final ConcurrentHashMap<String, Long> sentItems = new ConcurrentHashMap<>();
+    private static final long EXPIRY_TIME_MS = 1 * 60 * 1000;
+    private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     @PostConstruct
     public void init() {
         peers = new ArrayList<>(nodeConfig.getSeedNodes());
@@ -46,6 +51,8 @@ public class NetworkService {
         requestPeersFromSeed(nodeConfig.getSeedNodes().get(1));
         System.out.println(Arrays.toString(peers.toArray()));
         System.out.println(Utils.GREEN + "Node started at " + getPeerAddress() + Utils.RESET);
+
+        scheduler.scheduleAtFixedRate(this::housekeepOldMessages, 1, 1, TimeUnit.MINUTES);
     }
 
     public <T> void broadcast(T data, String endpoint) {
@@ -83,11 +90,32 @@ public class NetworkService {
     }
 
     public void broadcastBlock(Block block) {
+        String generatedId = generateItemId(block);
+        if(sentItems.containsKey(generatedId)){
+            return;
+        }
+        sentItems.put(generatedId, Instant.now().toEpochMilli());
         broadcast(block, "/blockchain/sendBlock");
     }
 
-    public void broadcastTransaction(Transaction transaction) {
-        broadcast(transaction, "/blockchain/sendTransaction");
+    public void broadcastTransactions(List<Transaction> transactions, boolean isCensured) {
+        List<Transaction> itemsToSend = new ArrayList<>(transactions);
+        for(Transaction transaction : itemsToSend) {
+            sentItems.put(generateItemId(transaction), Instant.now().toEpochMilli());
+        }
+
+        if(!isCensured){
+            for(Transaction transaction : itemsToSend) {
+                String generatedId = generateItemId(transaction);
+                if (sentItems.containsKey(generatedId)) {
+                    itemsToSend.remove(transaction);
+                }
+            }
+        }
+        if(itemsToSend.isEmpty()){
+            return;
+        }
+        broadcast(itemsToSend, "/blockchain/sendTransaction?isCensured=" + isCensured);
     }
 
     public void broadcastPeerAddress(String peerAddress) {
@@ -126,7 +154,23 @@ public class NetworkService {
         }
         return null;
     }
-
+    private <T> String generateItemId(T data) {
+        if (data instanceof Block block) {
+            block.calculateHash();
+            return "block_" + Hex.encodeHexString(block.getHash());
+        } else if (data instanceof Transaction transaction) {
+            return "txn_" + transaction.getTransactionId();
+        } else if (data instanceof String peerAddress) {
+            return "peer_" + peerAddress;
+        }
+        return null;
+    }
+    private void housekeepOldMessages() {
+        long currentTime = Instant.now().toEpochMilli();
+        sentItems.entrySet().removeIf(entry ->
+                currentTime - entry.getValue() > EXPIRY_TIME_MS);
+        log.debug("Housekeeping completed, current sent items count: {}", sentItems.size());
+    }
     public boolean requestPeersFromSeed(String seedNodeUrl) {
         try {
             HttpHeaders headers = new HttpHeaders();
