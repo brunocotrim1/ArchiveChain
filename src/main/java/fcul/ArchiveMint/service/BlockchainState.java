@@ -28,7 +28,7 @@ import java.util.List;
 @Getter
 public class BlockchainState {
 
-    private Mempool mempool = new Mempool();
+    private Mempool mempool;
     private CoinLogic coinLogic = new CoinLogic();
     private StorageContractLogic storageContractLogic = new StorageContractLogic();
     private Block lastExecutedBlock = null;
@@ -46,6 +46,7 @@ public class BlockchainState {
 
     @PostConstruct
     public void init() {
+        this.mempool = new Mempool(nodeConfig.getId());
     }
 
     public List<Transaction> executeBlock(Block toExecute) {
