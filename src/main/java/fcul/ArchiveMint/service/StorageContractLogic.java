@@ -277,7 +277,11 @@ public class StorageContractLogic implements Serializable {
         }
         for (FileProvingWindow window : expiringNow) {
             window.setState(FileProvingWindowState.FAILED);
-            //System.out.println("Expired window: " + window);
+            StorageContract contract = window.getContract();
+            FileProvingWindow newWindow = new FileProvingWindow(contract, null,
+                    toExecute.getHeight() + contract.getProofFrequency(),
+                    toExecute.getHeight() + contract.getProofFrequency() + contract.getWindowSize());
+            upcomingContracts.offer(newWindow);
         }
     }
 

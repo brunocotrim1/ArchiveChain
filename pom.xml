@@ -127,12 +127,12 @@
                         <configuration>
                             <outputDirectory>${project.basedir}/build</outputDirectory>
                             <resources>
-                                <resource>
-                                    <directory>src/main/resources</directory>
+                                <include>
+                                    <directory>${project.basedir}/src/main/resources</directory>
                                     <includes>
                                         <include>application.yaml</include>
                                     </includes>
-                                </resource>
+                                </include>
                             </resources>
                         </configuration>
                     </execution>

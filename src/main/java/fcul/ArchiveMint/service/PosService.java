@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -35,7 +36,7 @@ public class PosService {
 
     public void plotFile(String fileName) throws Exception {
         String normalizedFileName = Normalizer.normalize(fileName, Normalizer.Form.NFC);
-        fileName = URLEncoder.encode(normalizedFileName, StandardCharsets.UTF_8);
+        fileName = encodeURIComponent(normalizedFileName);
         PoS.plot_files(nodeConfig.getFilesToPlotPath() + "/" + fileName,
                 nodeConfig.getStoragePath() + "/" + PLOT_FOLDER +
                         "/" + fileName, keyManager.getPublicKey().getEncoded());
@@ -44,7 +45,7 @@ public class PosService {
 
     public void plotFileData(byte[] data, String fileName) throws Exception {
         String normalizedFileName = Normalizer.normalize(fileName, Normalizer.Form.NFC);
-        fileName = URLEncoder.encode(normalizedFileName, StandardCharsets.UTF_8);
+        fileName = encodeURIComponent(normalizedFileName);
         System.out.println(Utils.GREEN + "Plotting file " + fileName + Utils.RESET);
         String destinationFolder = nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + fileName;
         PoS.plot_FilesParallel(data, destinationFolder, keyManager.getPublicKey().getEncoded());
@@ -53,7 +54,7 @@ public class PosService {
     public byte[] retrieveOriginalData(String filename) throws Exception {
         filename = URLDecoder.decode(filename, StandardCharsets.UTF_8);
         filename = Normalizer.normalize(filename, Normalizer.Form.NFC);
-        filename = URLEncoder.encode(filename, StandardCharsets.UTF_8);
+        filename = encodeURIComponent(filename);
         System.out.println("Retrieving original data from " + nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + filename);
         return PoS.retrieveOriginalParallel(nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + filename);
 
@@ -74,7 +75,7 @@ public class PosService {
     public FileProof generateFileProof(FileProvingWindow fileProvingWindow) throws Exception {
         StorageContract storageContract = fileProvingWindow.getContract();
         String normalizedFileName = Normalizer.normalize(storageContract.getFileUrl(), Normalizer.Form.NFC);
-        normalizedFileName = URLEncoder.encode(normalizedFileName, StandardCharsets.UTF_8);
+        normalizedFileName = encodeURIComponent(normalizedFileName);
         String plotPath = nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + normalizedFileName;
         byte[] challenge = Hex.decode(fileProvingWindow.getPoDpChallenge());
         List<byte[]> pdpProof = PoDp.generateProofFromPlots(plotPath, challenge);
@@ -101,5 +102,17 @@ public class PosService {
             return false;
         }
     }
+    private static String encodeURIComponent(String s)
+    {
+        String result = null;
 
+        result = URLEncoder.encode(s, StandardCharsets.UTF_8)
+                .replaceAll("\\+", "%20")
+                .replaceAll("\\%21", "!")
+                .replaceAll("\\%27", "'")
+                .replaceAll("\\%28", "(")
+                .replaceAll("\\%29", ")")
+                .replaceAll("\\%7E", "~");
+        return result;
+    }
 }
