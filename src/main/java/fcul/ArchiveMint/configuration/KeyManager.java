@@ -57,9 +57,17 @@ public class KeyManager {
                 fosPub.write(mnemonic.getBytes());
                 publicKey = pair.getPublic();
                 privateKey = pair.getPrivate();
-                String address = Hex.encodeHexString(CryptoUtils.hash256(publicKey.getEncoded()));
+                String address = CryptoUtils.getWalletAddress(Hex.encodeHexString(publicKey.getEncoded()));
                 System.out.println(Utils.GREEN + "Saved Mnemonic: " + mnemonic + Utils.RESET);
                 System.out.println(Utils.GREEN + "address: " + address + Utils.RESET);
+                //Save address into an empty file
+                try (FileOutputStream fos = new FileOutputStream(nodeConfig.getStoragePath() + "/"+address+".txt")) {
+                    String addressLine = "Adress: " + address + "\n";
+                    fos.write(addressLine.getBytes());
+
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -76,7 +84,7 @@ public class KeyManager {
             KeyPair pair = CryptoUtils.generateKeys(mnemonic);
             publicKey = pair.getPublic();
             privateKey = pair.getPrivate();
-            String address = Hex.encodeHexString(CryptoUtils.hash256(publicKey.getEncoded()));
+            String address = CryptoUtils.getWalletAddress(Hex.encodeHexString(publicKey.getEncoded()));
             System.out.println(Utils.GREEN + "Loaded Mnemonic: " + mnemonic + Utils.RESET);
             System.out.println(Utils.GREEN + "address: " + address + Utils.RESET);
         } catch (IOException e) {

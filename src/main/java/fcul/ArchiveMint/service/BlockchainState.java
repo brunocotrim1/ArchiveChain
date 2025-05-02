@@ -49,7 +49,7 @@ public class BlockchainState {
         this.mempool = new Mempool(nodeConfig.getId());
     }
 
-    public List<Transaction> executeBlock(Block toExecute) {
+    public List<Transaction> executeBlock(Block toExecute,boolean isSync) {
 
         try {
             System.out.println("Executing block height: " + toExecute.getHeight()
@@ -78,7 +78,7 @@ public class BlockchainState {
             }
             List<Transaction> resultingTransactions = new ArrayList<>();
             storageContractLogic.processFileExpiredAndUpcomingProvingWindows(toExecute, keyManager);
-            resultingTransactions.addAll(storageContractLogic.generateFileProofs(posService, keyManager, toExecute));
+            resultingTransactions.addAll(storageContractLogic.generateFileProofs(posService, keyManager, toExecute,isSync));
             coinLogic.createCoin(CryptoUtils.getWalletAddress(minerPk), BigInteger.valueOf(blockReward), toExecute, true);
             //State Post Block Execution
             storeBlockAndStateInDisk(toExecute, coinLogic, storageContractLogic);

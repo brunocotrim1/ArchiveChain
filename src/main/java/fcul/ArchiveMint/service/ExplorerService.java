@@ -244,7 +244,8 @@ public class ExplorerService {
         if (fileName != null && !fileName.isEmpty()) {
             allFiles = searchedFiles(fileName);
         } else {
-            allFiles = blockchainState.getStorageContractLogic().getStorageContracts().keySet().stream().toList();
+            allFiles = new ArrayList<>(blockchainState.getStorageContractLogic().getStorageContracts().keySet());
+            Collections.reverse(allFiles);
         }
         int toIndex = Math.min(offset + limit, allFiles.size());
         if (offset >= allFiles.size()) {

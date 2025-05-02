@@ -91,11 +91,6 @@ public class NetworkService {
     }
 
     public void broadcastBlock(Block block) {
-        String generatedId = generateItemId(block);
-        if (sentItems.containsKey(generatedId)) {
-            return;
-        }
-        sentItems.put(generatedId, Instant.now().toEpochMilli());
         broadcast(block, "/blockchain/sendBlock");
     }
 

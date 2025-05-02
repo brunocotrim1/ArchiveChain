@@ -46,7 +46,7 @@ public class PosService {
     public void plotFileData(byte[] data, String fileName) throws Exception {
         String normalizedFileName = Normalizer.normalize(fileName, Normalizer.Form.NFC);
         fileName = encodeURIComponent(normalizedFileName);
-        System.out.println(Utils.GREEN + "Plotting file " + fileName + Utils.RESET);
+        //System.out.println(Utils.GREEN + "Plotting file " + fileName + Utils.RESET);
         String destinationFolder = nodeConfig.getStoragePath() + "/" + PLOT_FOLDER + "/" + fileName;
         PoS.plot_FilesParallel(data, destinationFolder, keyManager.getPublicKey().getEncoded());
     }

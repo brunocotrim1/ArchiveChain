@@ -105,30 +105,28 @@ public class BlockchainService {
                     }
                     archivedStorage = archivedStorage.add(BigInteger.valueOf(file.getSize()));
                 } catch (Exception e) {
-                    e.printStackTrace();
-                    throw new RuntimeException(e);
-
+                  log.debug(e.getMessage());
                 } finally {
-                    System.out.println("Archive Counter: " + archiveCounter.get());
+                    log.debug("Archive Counter: " + archiveCounter.get());
                     archiveCounter.decrementAndGet();
                 }
             });
 
             return ResponseEntity.ok("File Archived Successfully with contract: " + contract);
         } catch (Exception e) {
-            e.printStackTrace();
+            //e.printStackTrace();
             //Send error
             return ResponseEntity.status(500).body("Error processing file: " + e.getMessage());
         }
     }
 
     public void aesProcess(byte[] fileData, String fileUrl, Transaction t) throws Exception {
-        System.out.println("AES File submitted to plotter, available space: " + nodeConfig.getDedicatedStorage());
+        log.debug("AES File submitted to plotter, available space: " + nodeConfig.getDedicatedStorage());
         posService.plotFileData(fileData, fileUrl);
         List<Transaction> transactions = new ArrayList<>();
         transactions.add(t);
         addTransaction(transactions);
-        System.out.println("Storage contract signed and verified!");
+
         // Assuming t is or contains StorageContractSubmission
         StorageContractSubmission storageContract = (StorageContractSubmission) t;
 
@@ -140,7 +138,7 @@ public class BlockchainService {
         HttpEntity<StorageContractSubmission> requestEntity = new HttpEntity<>(storageContract, headers);
 
         // Send to the validateAES endpoint
-        String targetUrl = nodeConfig.getFccnNetworkAddress() + "/storage/validateAES";  // Assuming nodeConfig provides the base URL
+        String targetUrl = nodeConfig.getFccnNetworkAddress() + "/storage/validateAES";
         ResponseEntity<Boolean> response = restTemplate.exchange(
                 targetUrl,
                 HttpMethod.POST,
@@ -150,7 +148,8 @@ public class BlockchainService {
 
         // Check response
         if (response.getStatusCode() == HttpStatus.OK && Boolean.TRUE.equals(response.getBody())) {
-            System.out.println("Storage contract signed and verified!");
+            log.debug("Storage Contract signed and verified for AES!");
+            nodeConfig.setDedicatedStorage(nodeConfig.getDedicatedStorage() - fileData.length);
         } else {
             throw new Exception("AES validation failed! Status Code: " + response.getStatusCode());
         }
@@ -194,6 +193,7 @@ public class BlockchainService {
         if (response.getStatusCode() == HttpStatus.OK) {
             StorageContract storageContract = response.getBody();
             System.out.println("Storage contract signed and verified for VDE!");
+            nodeConfig.setDedicatedStorage(nodeConfig.getDedicatedStorage() - fileData.length);
             return blockchainState.validateContractSubmission(fileData, storageContract, keyManager);
         } else {
             System.out.println("Request failed! Status Code: " + response.getStatusCode());
@@ -286,6 +286,8 @@ public class BlockchainService {
                 block = blockchainState.readBlockFromFile(currentHeight, true);
             }
         } catch (Exception e) {
+        }finally {
+            synchronizing = false;
         }
     }
 
@@ -347,6 +349,7 @@ public class BlockchainService {
                 synchronizing = false;
                 return true;
             } finally {
+                synchronizing = false;
                 blockProcessingLock.unlock();
             }
         } catch (Exception e) {
@@ -524,7 +527,7 @@ public class BlockchainService {
         if (!validateSignature(block)) {
             return false;
         }
-
+        System.out.println("Processing block: " + block.getHeight() + " with hash: " + Hex.toHexString(block.calculateHash()));
         if (block.getHeight() == lastFinalizedBlock.getHeight()) {
             //Caso de ultimo bloco estar a mesma height do bloco recebido, substituir e extender
             if (!blockIsBetter(block, lastFinalizedBlock)) {
@@ -638,7 +641,7 @@ public class BlockchainService {
         blockchainState.addTransaction(blockchainState.getCensuredTransactions(blockSwapped.getTransactions(),
                 newBlock.getTransactions()),true);
 
-        List<Transaction> transactionsResultantOfExecution = blockchainState.executeBlock(newBlock);
+        List<Transaction> transactionsResultantOfExecution = blockchainState.executeBlock(newBlock,synchronizing);
         addTransaction(transactionsResultantOfExecution);
         lastExecutedBlockHeight = newBlock.getHeight();
             /*
@@ -656,7 +659,7 @@ public class BlockchainService {
     public boolean processBlockState(Block block) {
         if (blockchainState.validateBlockTransactions(block)) {
             finalizedBlockChain.add(block);
-            List<Transaction> transactions = blockchainState.executeBlock(block);
+            List<Transaction> transactions = blockchainState.executeBlock(block,synchronizing);
             addTransaction(transactions);
             lastExecutedBlockHeight = block.getHeight();
             return true;

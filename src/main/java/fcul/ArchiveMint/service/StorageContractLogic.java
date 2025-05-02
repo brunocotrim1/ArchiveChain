@@ -119,7 +119,7 @@ public class StorageContractLogic implements Serializable {
         }
     }
 
-    public List<Transaction> generateFileProofs(PosService posService, KeyManager keyManager, Block executedBlock) {
+    public List<Transaction> generateFileProofs(PosService posService, KeyManager keyManager, Block executedBlock,boolean isSync) {
         List<Transaction> fileProofs = new ArrayList<>();
         if (currentMinerWindows.isEmpty()) {
             return fileProofs;
@@ -128,6 +128,9 @@ public class StorageContractLogic implements Serializable {
         for (FileProvingWindow window : currentMinerWindows) {
             if(window.getPoDpChallenge() == null) {
                 temp.add(window);
+                continue;
+            }
+            if(isSync){
                 continue;
             }
             try {
