@@ -78,7 +78,7 @@ public class CachedModifications {
             case STORAGE_CONTRACT_SUBMISSION:
                 StorageContract contract = ((StorageContractSubmission) transaction).getContract();
                 if (!verifyStorageSubmissionDouble((StorageContractSubmission) transaction)) {
-                    //log.debug("Storage Double spend detected");
+                    log.debug("Storage Double spend detected");
                     return false;
                 }
                 addStorageContract(contract);

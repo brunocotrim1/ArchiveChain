@@ -62,7 +62,7 @@ public class BlockchainState {
                     case CURRENCY_TRANSACTION:
                         CurrencyTransaction currencyTransaction = (CurrencyTransaction) transaction;
                         coinLogic.spendCoin(currencyTransaction.getSenderAddress(), currencyTransaction.getReceiverAddress(),
-                                currencyTransaction.getCoins(), currencyTransaction.getAmount(),toExecute);
+                                currencyTransaction.getCoins(), currencyTransaction.getAmount(), toExecute);
                         break;
                     case STORAGE_CONTRACT_SUBMISSION:
                         StorageContractSubmission storageContractSubmission = (StorageContractSubmission) transaction;
@@ -70,16 +70,16 @@ public class BlockchainState {
                         break;
                     case FILE_PROOF:
                         FileProofTransaction fileProofTransaction = (FileProofTransaction) transaction;
-                        storageContractLogic.processFileProof(fileProofTransaction,coinLogic,toExecute);
+                        storageContractLogic.processFileProof(fileProofTransaction, coinLogic, toExecute);
                         break;
                     default:
                         throw new RuntimeException("Invalid transaction type");
                 }
             }
             List<Transaction> resultingTransactions = new ArrayList<>();
+            storageContractLogic.processFileExpiredAndUpcomingProvingWindows(toExecute, keyManager);
             resultingTransactions.addAll(storageContractLogic.generateFileProofs(posService, keyManager, toExecute));
-            storageContractLogic.processFileExpiredAndUpcomingProvingWindows(toExecute,keyManager);
-            coinLogic.createCoin(CryptoUtils.getWalletAddress(minerPk), BigInteger.valueOf(blockReward),toExecute,true);
+            coinLogic.createCoin(CryptoUtils.getWalletAddress(minerPk), BigInteger.valueOf(blockReward), toExecute, true);
             //State Post Block Execution
             storeBlockAndStateInDisk(toExecute, coinLogic, storageContractLogic);
             lastExecutedBlock = toExecute;
@@ -91,12 +91,13 @@ public class BlockchainState {
     }
 
 
-    public boolean addTransaction(List<Transaction> transactions,boolean isCensured) {
+    public boolean addTransaction(List<Transaction> transactions, boolean isCensured) {
         synchronized (mempool) {
             if (mempool.addTransaction(transactions)) {
+                net.broadcastTransactions(transactions, isCensured);
                 return true;
             }
-            net.broadcastTransactions(transactions,isCensured);
+            net.broadcastTransactions(transactions, isCensured);
             return false;
         }
 
@@ -150,21 +151,21 @@ public class BlockchainState {
     }
 
     public boolean validateBlockTransactions(Block block) {
-        try{
-        CachedModifications cachedModifications = new CachedModifications();
+        try {
+            CachedModifications cachedModifications = new CachedModifications();
 
-        for (Transaction transaction : block.getTransactions()) {
-            if (!validateTransaction(transaction, coinLogic, storageContractLogic)) {
-                System.out.println("Invalid transaction in block");
-                return false;
-            }
-            if(!cachedModifications.verifyDoubleSpend(transaction)){
-                System.out.println("Double spend detected in block");
-                return false;
-            }
+            for (Transaction transaction : block.getTransactions()) {
+                if (!validateTransaction(transaction, coinLogic, storageContractLogic)) {
+                    System.out.println("Invalid transaction in block");
+                    return false;
+                }
+                if (!cachedModifications.verifyDoubleSpend(transaction)) {
+                    System.out.println("Double spend detected in block");
+                    return false;
+                }
 
-        }
-        return true;
+            }
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -172,20 +173,20 @@ public class BlockchainState {
     }
 
     public boolean validateBlockWithRollback(Block block) {
-        try{
-        CachedModifications cachedModifications = new CachedModifications();
-        BackupLastExecuted backup = getStateFromDisk(block.getHeight() - 1);
-        for (Transaction transaction : block.getTransactions()) {
-            if (!validateTransaction(transaction, backup.getCoinLogic(), backup.getStorageContractLogic())) {
-                System.out.println("Invalid transaction in block");
-                return false;
+        try {
+            CachedModifications cachedModifications = new CachedModifications();
+            BackupLastExecuted backup = getStateFromDisk(block.getHeight() - 1);
+            for (Transaction transaction : block.getTransactions()) {
+                if (!validateTransaction(transaction, backup.getCoinLogic(), backup.getStorageContractLogic())) {
+                    System.out.println("Invalid transaction in block");
+                    return false;
+                }
+                if (!cachedModifications.verifyDoubleSpend(transaction)) {
+                    System.out.println("Double spend detected in block");
+                    return false;
+                }
             }
-            if(!cachedModifications.verifyDoubleSpend(transaction)){
-                System.out.println("Double spend detected in block");
-                return false;
-            }
-        }
-        return true;
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -197,17 +198,17 @@ public class BlockchainState {
     }
 
     public void rollBackBlock(Block blockSwapped) {
-        try{
-        BackupLastExecuted backup = getStateFromDisk(blockSwapped.getHeight() - 1);
-        if (backup == null) {
-            throw new RuntimeException("No backup available");
-        }
-        if (!Arrays.equals(backup.getExecutedBlock().calculateHash(), blockSwapped.getPreviousHash())) {
-            throw new RuntimeException("Block height does not match");
-        }
-        coinLogic = backup.getCoinLogic();
-        storageContractLogic = backup.getStorageContractLogic();
-        System.out.println(Utils.RED+"Rollback Sucessfull to height: " + blockSwapped.getHeight()+Utils.RESET);
+        try {
+            BackupLastExecuted backup = getStateFromDisk(blockSwapped.getHeight() - 1);
+            if (backup == null) {
+                throw new RuntimeException("No backup available");
+            }
+            if (!Arrays.equals(backup.getExecutedBlock().calculateHash(), blockSwapped.getPreviousHash())) {
+                throw new RuntimeException("Block height does not match");
+            }
+            coinLogic = backup.getCoinLogic();
+            storageContractLogic = backup.getStorageContractLogic();
+            System.out.println(Utils.RED + "Rollback Sucessfull to height: " + blockSwapped.getHeight() + Utils.RESET);
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException(e);
@@ -267,9 +268,9 @@ public class BlockchainState {
         oos.close();
     }
 
-    public Block readBlockFromFile(long height,boolean reload) throws IOException, ClassNotFoundException {
+    public Block readBlockFromFile(long height, boolean reload) throws IOException, ClassNotFoundException {
         try {
-            if(!reload){
+            if (!reload) {
                 if (lastExecutedBlock == null) {
                     return null;
                 }
@@ -283,7 +284,7 @@ public class BlockchainState {
             Block block = (Block) ois.readObject();
             ois.close();
             return block;
-        }catch (Exception e){
+        } catch (Exception e) {
             return null;
         }
     }

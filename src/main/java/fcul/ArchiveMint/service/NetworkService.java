@@ -41,6 +41,7 @@ public class NetworkService {
     private final ConcurrentHashMap<String, Long> sentItems = new ConcurrentHashMap<>();
     private static final long EXPIRY_TIME_MS = 1 * 60 * 1000;
     private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+
     @PostConstruct
     public void init() {
         peers = new ArrayList<>(nodeConfig.getSeedNodes());
@@ -91,7 +92,7 @@ public class NetworkService {
 
     public void broadcastBlock(Block block) {
         String generatedId = generateItemId(block);
-        if(sentItems.containsKey(generatedId)){
+        if (sentItems.containsKey(generatedId)) {
             return;
         }
         sentItems.put(generatedId, Instant.now().toEpochMilli());
@@ -100,19 +101,19 @@ public class NetworkService {
 
     public void broadcastTransactions(List<Transaction> transactions, boolean isCensured) {
         List<Transaction> itemsToSend = new ArrayList<>(transactions);
-        for(Transaction transaction : itemsToSend) {
+        for (Transaction transaction : itemsToSend) {
             sentItems.put(generateItemId(transaction), Instant.now().toEpochMilli());
         }
 
-        if(!isCensured){
-            for(Transaction transaction : itemsToSend) {
-                String generatedId = generateItemId(transaction);
-                if (sentItems.containsKey(generatedId)) {
-                    itemsToSend.remove(transaction);
-                }
-            }
+        if (!isCensured) {
+            itemsToSend = itemsToSend.stream()
+                    .filter(tx -> !sentItems.containsKey(generateItemId(tx)))
+                    .toList();
+
+        } else {
+            log.info("Broadcasting {} censured transactions", itemsToSend.size());
         }
-        if(itemsToSend.isEmpty()){
+        if (itemsToSend.isEmpty()) {
             return;
         }
         broadcast(itemsToSend, "/blockchain/sendTransaction?isCensured=" + isCensured);
@@ -133,7 +134,7 @@ public class NetworkService {
             Matcher matcher = pattern.matcher(peerAddress);
 
             // Check if peerAddress is valid, not already in peers, and doesn't end with ownPort
-            if (!peers.contains(peerAddress)  && matcher.matches()) {
+            if (!peers.contains(peerAddress) && matcher.matches()) {
                 System.out.println("Adding peer address: " + peerAddress);
                 peers.add(peerAddress);
                 broadcastPeerAddress(peerAddress);
@@ -146,14 +147,16 @@ public class NetworkService {
     public String getPeerAddress() {
         return nodeConfig.getFarmerAddress() + ":" + ownPort;
     }
-    public String getOriginalSeedNode(){
-        for(String seedNode : nodeConfig.getSeedNodes()){
-            if(!seedNode.equals(getPeerAddress())){
+
+    public String getOriginalSeedNode() {
+        for (String seedNode : nodeConfig.getSeedNodes()) {
+            if (!seedNode.equals(getPeerAddress())) {
                 return seedNode;
             }
         }
         return null;
     }
+
     private <T> String generateItemId(T data) {
         if (data instanceof Block block) {
             block.calculateHash();
@@ -165,12 +168,14 @@ public class NetworkService {
         }
         return null;
     }
+
     private void housekeepOldMessages() {
         long currentTime = Instant.now().toEpochMilli();
         sentItems.entrySet().removeIf(entry ->
                 currentTime - entry.getValue() > EXPIRY_TIME_MS);
         log.debug("Housekeeping completed, current sent items count: {}", sentItems.size());
     }
+
     public boolean requestPeersFromSeed(String seedNodeUrl) {
         try {
             HttpHeaders headers = new HttpHeaders();

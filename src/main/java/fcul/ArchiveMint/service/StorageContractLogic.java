@@ -99,6 +99,10 @@ public class StorageContractLogic implements Serializable {
                 //System.out.println("Invalid window");
                 return false;
             }
+            if(!window.getPoDpChallenge().equals(fileProofTransaction.getFileProof().getPoDpChallenge())) {
+                //System.out.println("Invalid challenge");
+                return false;
+            }
 
             byte[] challenge = Hex.decodeHex(window.getPoDpChallenge());
             byte[] root = Hex.decodeHex(contract.getMerkleRoot());
@@ -122,8 +126,7 @@ public class StorageContractLogic implements Serializable {
         }
         List<FileProvingWindow> temp = new ArrayList<>();
         for (FileProvingWindow window : currentMinerWindows) {
-            if (executedBlock.getHeight() < window.getStartBlockIndex()) {
-                //Window not ready
+            if(window.getPoDpChallenge() == null) {
                 temp.add(window);
                 continue;
             }
@@ -140,11 +143,11 @@ public class StorageContractLogic implements Serializable {
                 //System.out.println("File proof generated: " + fileProof);
             } catch (Exception e) {
                 e.printStackTrace();
-                throw new RuntimeException(e);
             }
         }
         //System.out.println("Produced file proofs: " + fileProofs.size());
         currentMinerWindows = temp;
+        System.out.println("Generated file proofs: " + fileProofs.size());
         return fileProofs;
     }
 
@@ -157,22 +160,25 @@ public class StorageContractLogic implements Serializable {
                             .equals(Hex.encodeHexString(storageContract.getHash())))
                     .findFirst().orElse(null);
             if (contract == null) {
+                System.out.println("Contract not found File Proof");
                 throw new RuntimeException("Contract not found");
             }
             FileProvingWindow window = provingWindows.get(fileProofTransaction.getFileProof().getStorageContractHash());
             if (window == null) {
+                System.out.println("Window not found file proof");
                 throw new RuntimeException("Window not found");
             }
             if (expiringContracts.remove(window)) {
                 //System.out.println("Window removed from expiring contracts");
             }
             if (provingWindows.remove(fileProofTransaction.getFileProof().getStorageContractHash()) == null) {
-                throw new RuntimeException("Window not found");
+                System.out.println("Window not found in proving windows");
+                throw new RuntimeException("Window not found in proving windows");
             }
             window.setState(FileProvingWindowState.PROVED);
+            provingWindows.put(fileProofTransaction.getFileProof().getStorageContractHash(), null);
             String address = CryptoUtils.getWalletAddress(fileProofTransaction.getStorerPublicKey());
             coinLogic.createCoin(address, new BigInteger(String.valueOf(contract.getValue())), block, true);
-
             FileProvingWindow newWindow = new FileProvingWindow(contract, null,
                     block.getHeight() + contract.getProofFrequency(),
                     block.getHeight() + contract.getProofFrequency() + contract.getWindowSize());
@@ -282,6 +288,9 @@ public class StorageContractLogic implements Serializable {
                     toExecute.getHeight() + contract.getProofFrequency(),
                     toExecute.getHeight() + contract.getProofFrequency() + contract.getWindowSize());
             upcomingContracts.offer(newWindow);
+            String contractHash = Hex.encodeHexString(contract.getHash());
+            fileProvingWindows.putIfAbsent(contractHash, new ArrayList<>());
+            fileProvingWindows.get(contractHash).add(newWindow);
         }
     }
 
@@ -291,9 +300,11 @@ public class StorageContractLogic implements Serializable {
         try {
             byte[] computedRoot = PoDp.merkleRootFromData(fileData);
             if (!Arrays.equals(Hex.decodeHex(contract.getMerkleRoot()), computedRoot)) {
+                System.out.println("Invalid merkle root");
                 throw new RuntimeException("Invalid merkle root");
             }
             if (!verifyStorageContract(contract, keyManager.getPublicKey().getEncoded(), keyManager.getFccnPublicKey())) {
+                System.out.println("Invalid storage contract");
                 throw new RuntimeException("Invalid storage contract");
             }
 
