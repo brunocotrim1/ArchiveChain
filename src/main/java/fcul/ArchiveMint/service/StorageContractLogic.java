@@ -15,6 +15,7 @@ import org.apache.commons.codec.binary.Hex;
 import java.io.Serializable;
 import java.math.BigInteger;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Data
 public class StorageContractLogic implements Serializable {
@@ -119,41 +120,48 @@ public class StorageContractLogic implements Serializable {
         }
     }
 
-    public List<Transaction> generateFileProofs(PosService posService, KeyManager keyManager, Block executedBlock,boolean isSync) {
+    public List<Transaction> generateFileProofs(PosService posService, KeyManager keyManager, Block executedBlock, boolean isSync) {
         List<Transaction> fileProofs = new ArrayList<>();
         if (currentMinerWindows.isEmpty()) {
             return fileProofs;
         }
-        List<FileProvingWindow> temp = new ArrayList<>();
-        for (FileProvingWindow window : currentMinerWindows) {
-            if(window.getPoDpChallenge() == null) {
-                temp.add(window);
-                continue;
-            }
-            if(isSync){
-                continue;
-            }
-            try {
-                FileProof fileProof = posService.generateFileProof(window);
-                FileProofTransaction fileProofTransaction = FileProofTransaction.builder()
-                        .fileProof(fileProof)
-                        .storerPublicKey(Hex.encodeHexString(keyManager.getPublicKey().getEncoded()))
-                        .build();
-                fileProofTransaction.setType(TransactionType.FILE_PROOF);
-                fileProofTransaction.setStorerSignature(Hex.encodeHexString(CryptoUtils.ecdsaSign(Hex.decodeHex(fileProofTransaction.getTransactionId()),
-                        keyManager.getPrivateKey())));
-                fileProofs.add(fileProofTransaction);
-                //System.out.println("File proof generated: " + fileProof);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        //System.out.println("Produced file proofs: " + fileProofs.size());
+
+        List<FileProvingWindow> temp = Collections.synchronizedList(new ArrayList<>());
+        fileProofs = currentMinerWindows.parallelStream()
+                .filter(window -> {
+                    if (window.getPoDpChallenge() == null) {
+                        temp.add(window);
+                        return false;
+                    }
+                    return !isSync;
+                })
+                .map(window -> {
+                    try {
+                        FileProof fileProof = posService.generateFileProof(window);
+                        FileProofTransaction fileProofTransaction = FileProofTransaction.builder()
+                                .fileProof(fileProof)
+                                .storerPublicKey(Hex.encodeHexString(keyManager.getPublicKey().getEncoded()))
+                                .build();
+                        fileProofTransaction.setType(TransactionType.FILE_PROOF);
+                        fileProofTransaction.setStorerSignature(Hex.encodeHexString(
+                                CryptoUtils.ecdsaSign(
+                                        Hex.decodeHex(fileProofTransaction.getTransactionId()),
+                                        keyManager.getPrivateKey()
+                                )
+                        ));
+                        return (Transaction) fileProofTransaction;
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
         currentMinerWindows = temp;
         System.out.println("Generated file proofs: " + fileProofs.size());
         return fileProofs;
     }
-
     public void processFileProof(FileProofTransaction fileProofTransaction, CoinLogic coinLogic, Block block) {
         try {
             //Process is only ran after validation so revalidation is not needed here
