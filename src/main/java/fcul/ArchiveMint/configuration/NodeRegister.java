@@ -45,4 +45,31 @@ public class NodeRegister {
             return false;
         }
     }
+    public boolean requestMoreStorage(long amount) {
+        try{
+            RestTemplate restTemplate = new RestTemplate();
+            String url = nodeConfig.getFccnNetworkAddress() + "/storage/requestMoreFiles";
+            System.out.println("Requesting more storage from FCCN: " + amount);
+            String farmerAddress = nodeConfig.getFarmerAddress() + ":" + keyManager.getPort();
+            PeerRegistration peer = PeerRegistration.builder()
+                    .walletAddress(CryptoUtils.getWalletAddress(Hex.encodeHexString(keyManager.getPublicKey().getEncoded())))
+                    .dedicatedStorage(amount)
+                    .publicKey(Hex.encodeHexString(keyManager.getPublicKey().getEncoded()))
+                    .networkAddress(farmerAddress)
+                    .fillStorageNow(nodeConfig.isInitializeStorage())
+                    .build();
+
+            String toSign = peer.getNetworkAddress() + peer.getWalletAddress() + peer.getDedicatedStorage();
+            byte[] signature = CryptoUtils.ecdsaSign(toSign.getBytes(), keyManager.getPrivateKey());
+            peer.setSignature(Hex.encodeHexString(signature));
+            HttpEntity<PeerRegistration> requestEntity = new HttpEntity<>(peer);
+
+            // Send the POST request using RestTemplate
+            ResponseEntity<Boolean> response = restTemplate.exchange(url, HttpMethod.POST, requestEntity, Boolean.class);
+            return Boolean.TRUE.equals(response.getBody());
+        }catch (Exception e){
+            e.printStackTrace();
+            return false;
+        }
+    }
 }

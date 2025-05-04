@@ -2,6 +2,7 @@ package fcul.ArchiveMint.controller;
 
 
 import fcul.ArchiveMint.configuration.KeyManager;
+import fcul.ArchiveMint.configuration.NodeRegister;
 import fcul.ArchiveMint.service.BlockchainService;
 import fcul.ArchiveMint.service.BlockchainState;
 import fcul.ArchiveMint.service.NetworkService;
@@ -35,6 +36,8 @@ public class BlockchainController {
     private KeyManager keyManager;
     @Autowired
     private NetworkService networkService;
+    @Autowired
+    private NodeRegister nodeRegister;
 
     @GetMapping("/test")
     public int test() {
@@ -76,6 +79,11 @@ public class BlockchainController {
     @GetMapping("/getStorageContracts")
     public HashMap<String, List<StorageContract>> getStorageContracts() {
         return blockchainService.getStorageContractLogic().getStorageContracts();
+    }
+
+    @GetMapping("/requestMoreFiles")
+    public ResponseEntity<Boolean> requestMoreFiles(@RequestParam long amount) {
+        return ResponseEntity.ok(nodeRegister.requestMoreStorage(amount));
     }
 
     @PostMapping(consumes = "multipart/form-data", value = "/archiveFile")
