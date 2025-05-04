@@ -1,7 +1,6 @@
 package fcul.wrapper;
 
 
-import org.apache.commons.codec.binary.Hex;
 import org.bouncycastle.util.Arrays;
 
 import java.io.File;
@@ -9,12 +8,21 @@ import java.util.Random;
 
 public class Sloth {
     static {
-        String libPath = new File("src/main/native/sloth.so").getAbsolutePath();
+
+        String osName = System.getProperty("os.name").toLowerCase();
+        String libName;
+        if (osName.contains("win")) {
+            libName = "sloth.dll";
+        } else {
+            libName = "sloth.so";
+        }
+        String libPath = new File("lib/" + libName).getAbsolutePath();
         System.load(libPath);
     }
 
     // Native method declarations
     public native byte[] encode(byte[] piece, byte[] iv, int layers);
+
     public native byte[] decode(byte[] piece, byte[] iv, int layers);
 
     public static void main(String[] args) {
