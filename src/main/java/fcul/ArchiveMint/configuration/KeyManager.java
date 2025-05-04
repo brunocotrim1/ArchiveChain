@@ -58,8 +58,8 @@ public class KeyManager {
                 publicKey = pair.getPublic();
                 privateKey = pair.getPrivate();
                 String address = CryptoUtils.getWalletAddress(Hex.encodeHexString(publicKey.getEncoded()));
-                System.out.println(Utils.GREEN + "Saved Mnemonic: " + mnemonic + Utils.RESET);
-                System.out.println(Utils.GREEN + "address: " + address + Utils.RESET);
+                System.out.println(Utils.GREEN + "Mnemonica Guardada: " + mnemonic + Utils.RESET);
+                System.out.println(Utils.GREEN + "Endereço da carteira: https://archivechain.pt/wallet-details/" + address + Utils.RESET);
                 //Save address into an empty file
                 try (FileOutputStream fos = new FileOutputStream(nodeConfig.getStoragePath() + "/"+address+".txt")) {
                     String addressLine = "Adress: " + address + "\n";
