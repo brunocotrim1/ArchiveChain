@@ -96,15 +96,13 @@ public class NetworkService {
 
     public void broadcastTransactions(List<Transaction> transactions, boolean isCensured) {
         List<Transaction> itemsToSend = new ArrayList<>(transactions);
-        for (Transaction transaction : itemsToSend) {
-            sentItems.put(generateItemId(transaction), Instant.now().toEpochMilli());
-        }
-
         if (!isCensured) {
             itemsToSend = itemsToSend.stream()
                     .filter(tx -> !sentItems.containsKey(generateItemId(tx)))
                     .toList();
-
+            for (Transaction transaction : itemsToSend) {
+                sentItems.put(generateItemId(transaction), Instant.now().toEpochMilli());
+            }
         } else {
             log.info("Broadcasting {} censured transactions", itemsToSend.size());
         }

@@ -47,6 +47,7 @@ public class NodeRegister {
     }
     public boolean requestMoreStorage(long amount) {
         try{
+            nodeConfig.setDedicatedStorage(nodeConfig.getDedicatedStorage() + amount);
             RestTemplate restTemplate = new RestTemplate();
             String url = nodeConfig.getFccnNetworkAddress() + "/storage/requestMoreFiles";
             System.out.println("Requesting more storage from FCCN: " + amount);
