@@ -85,7 +85,7 @@ public class BlockchainService {
         try {
 
             if (archivedStorage.add(BigInteger.valueOf(file.getSize())).compareTo(BigInteger.valueOf(nodeConfig.getDedicatedStorage())) > 0) {
-                System.out.println(Utils.RED + "Not enough space to store file available" + Utils.RESET);
+                //System.out.println(Utils.RED + "Not enough space to store file available" + Utils.RESET);
                 return ResponseEntity.status(500).body("Not enough space to store file");
             }
             byte[] fileData = file.getInputStream().readAllBytes();
