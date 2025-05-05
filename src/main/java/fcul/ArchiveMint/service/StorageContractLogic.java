@@ -159,7 +159,7 @@ public class StorageContractLogic implements Serializable {
                 .collect(Collectors.toList());
 
         currentMinerWindows = temp;
-        System.out.println("Generated file proofs: " + fileProofs.size());
+        System.out.println("Provas ficheiros geradas: " + fileProofs.size());
         return fileProofs;
     }
     public void processFileProof(FileProofTransaction fileProofTransaction, CoinLogic coinLogic, Block block) {

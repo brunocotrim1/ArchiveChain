@@ -227,7 +227,7 @@ public class BlockchainService {
     public void onInit() {
         synchronizing = true;
         if (nodeConfig.isTimelord()) {
-            System.out.println(Utils.GREEN + "Timelord started with " + this.VDF_ITERATIONS + " Iterations" + Utils.RESET);
+            System.out.println(Utils.GREEN + "Timelord comecou com " + this.VDF_ITERATIONS + " Iteracoes de VDF" + Utils.RESET);
         }
         try {
             posService.init();
@@ -241,7 +241,7 @@ public class BlockchainService {
             if (nodeConfig.isTimelord()) {
                 if (!finalizedBlockChain.isEmpty()) {
                     extendFinalizedBlock(finalizedBlockChain.getLast());
-                    System.out.println(Utils.YELLOW + "Timelord started" + Utils.RESET);
+                    System.out.println(Utils.YELLOW + "Timelord Comecou" + Utils.RESET);
                 } else {
                     startMining();
                 }
@@ -250,7 +250,7 @@ public class BlockchainService {
             if (!nodeRegister.registerFCCN()) {
                 System.exit(-1);
             } else {
-                System.out.println(Utils.GREEN + "Node registered with FCCN" + Utils.RESET);
+                System.out.println(Utils.GREEN + "Node Registou-se na FCCN" + Utils.RESET);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -263,7 +263,7 @@ public class BlockchainService {
             long currentHeight = 0;
             Block block = blockchainState.readBlockFromFile(0, true);
             if (block == null) {
-                System.out.println(Utils.RED + "No Blocks to reload" + Utils.RESET);
+                System.out.println(Utils.RED + "Sem blocos para fazer reload" + Utils.RESET);
                 return;
             }
 
@@ -276,9 +276,9 @@ public class BlockchainService {
                     validateGenesisBlock(block);
                 } else {
                     if (!timelordAlgorithm(block)) {
-                        System.out.println(Utils.RED + "Failed to reload block at height: " + block.getHeight() + Utils.RESET);
+                        System.out.println(Utils.RED + "Falha ao fazer reload do bloco com altura: " + block.getHeight() + Utils.RESET);
                     } else {
-                        System.out.println(Utils.YELLOW + "Reloaded block at height: " + block.getHeight() + Utils.RESET);
+                        System.out.println(Utils.YELLOW + "Reload do bloco com altura: " + block.getHeight() + Utils.RESET);
                     }
                 }
                 finalizeBlock();
@@ -296,7 +296,7 @@ public class BlockchainService {
         synchronizing = true;
         long currentHeight = currentHeightP + 1;
         try {
-            System.out.println(Utils.YELLOW + "Synchronizing with seed node: " + seedNodeUrl + Utils.RESET);
+            System.out.println(Utils.YELLOW + "Sincronizar com a seed node: " + seedNodeUrl + Utils.RESET);
             RestTemplate restTemplate = new RestTemplate();
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -316,10 +316,9 @@ public class BlockchainService {
                     if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
                         if (response.getStatusCode() == HttpStatus.NOT_FOUND) {
                             // No more blocks available
-                            log.info("Synchronized blockchain up to height {}", finalizedBlockHeight);
+                            log.info("Blockchain sincronizada até altura {}", finalizedBlockHeight);
                             break;
                         }
-                        log.error("Failed to fetch block at height {}: {}", currentHeight, response.getStatusCode());
                         return false;
                     }
 
@@ -353,7 +352,6 @@ public class BlockchainService {
                 blockProcessingLock.unlock();
             }
         } catch (Exception e) {
-            log.error("Error synchronizing new node: {}, at height: " + currentHeight, e.getMessage());
             synchronizing = false;
             return false;
         }
@@ -362,7 +360,7 @@ public class BlockchainService {
 
     public void startMining() {
         try {
-            log.info("Starting mining");
+            log.info("A comecar Mineracao");
             if (finalizedBlockHeight > 0 || blockBeingMined != null) {
                 return;
             }
@@ -527,7 +525,7 @@ public class BlockchainService {
         if (!validateSignature(block)) {
             return false;
         }
-        System.out.println("Processing block: " + block.getHeight() + " with hash: " + Hex.toHexString(block.calculateHash()));
+        System.out.println("A processar bloco: " + block.getHeight() + " com hash: " + Hex.toHexString(block.calculateHash()));
         if (block.getHeight() == lastFinalizedBlock.getHeight()) {
             //Caso de ultimo bloco estar a mesma height do bloco recebido, substituir e extender
             if (!blockIsBetter(block, lastFinalizedBlock)) {

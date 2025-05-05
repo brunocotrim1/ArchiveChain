@@ -51,7 +51,7 @@ public class NetworkService {
         broadcastPeerAddress(getPeerAddress());
         requestPeersFromSeed(nodeConfig.getSeedNodes().get(1));
         System.out.println(Arrays.toString(peers.toArray()));
-        System.out.println(Utils.GREEN + "Node started at " + getPeerAddress() + Utils.RESET);
+        System.out.println(Utils.GREEN + "No comecou em: " + getPeerAddress() + Utils.RESET);
 
         scheduler.scheduleAtFixedRate(this::housekeepOldMessages, 1, 1, TimeUnit.MINUTES);
     }
@@ -104,7 +104,7 @@ public class NetworkService {
                 sentItems.put(generateItemId(transaction), Instant.now().toEpochMilli());
             }
         } else {
-            log.info("Broadcasting {} censured transactions", itemsToSend.size());
+            log.info("Broadcast {} transacoes censuradas", itemsToSend.size());
         }
         if (itemsToSend.isEmpty()) {
             return;
@@ -128,11 +128,11 @@ public class NetworkService {
 
             // Check if peerAddress is valid, not already in peers, and doesn't end with ownPort
             if (!peers.contains(peerAddress) && matcher.matches()) {
-                System.out.println("Adding peer address: " + peerAddress);
+                System.out.println("Parceiro adicionado: " + peerAddress);
                 peers.add(peerAddress);
                 broadcastPeerAddress(peerAddress);
             } else {
-                System.out.println("Invalid or duplicate peer address: " + peerAddress);
+                System.out.println("Endecero de parceiro invalido ou repetido: " + peerAddress);
             }
         }
     }

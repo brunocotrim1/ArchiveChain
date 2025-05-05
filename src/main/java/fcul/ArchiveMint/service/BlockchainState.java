@@ -52,8 +52,8 @@ public class BlockchainState {
     public List<Transaction> executeBlock(Block toExecute,boolean isSync) {
 
         try {
-            System.out.println("Executing block height: " + toExecute.getHeight()
-                    + " hash: " + Hex.encodeHexString(toExecute.calculateHash()) + "with " + toExecute.getTransactions().size() + " transactions");
+            System.out.println("A executar bloco com altura: " + toExecute.getHeight()
+                    + " hash: " + Hex.encodeHexString(toExecute.calculateHash()) + "com " + toExecute.getTransactions().size() + " transacoes");
             //backup = new BackupLastExecuted(toExecute, coinLogic, storageContractLogic);
             //BACKUP
             String minerPk = Hex.encodeHexString(toExecute.getMinerPublicKey());
@@ -109,7 +109,7 @@ public class BlockchainState {
             CachedModifications cachedModifications = new CachedModifications();
             List<Transaction> validTransactions = new ArrayList<>();
             int i = 0;
-            System.out.println("Mempool size: " + mempool.size());
+            System.out.println("Tamanho Mempool: " + mempool.size());
             while (i < maxAmountTransactions && mempool.size() > 0) {
                 Transaction transaction = mempool.poll();
                 if (transaction != null) {
@@ -121,7 +121,7 @@ public class BlockchainState {
                 }
                 i++;
             }
-            System.out.println("Valid transactions: " + validTransactions.size());
+            System.out.println("Transacoes validas: " + validTransactions.size());
             return validTransactions;
         }
     }
