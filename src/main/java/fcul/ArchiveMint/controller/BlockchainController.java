@@ -78,7 +78,7 @@ public class BlockchainController {
 
     @GetMapping("/getStorageContracts")
     public HashMap<String, List<StorageContract>> getStorageContracts() {
-        return blockchainService.getStorageContractLogic().getStorageContracts();
+        return new HashMap<>(blockchainService.getStorageContractLogic().getStorageContracts());
     }
 
     @GetMapping("/requestMoreFiles")

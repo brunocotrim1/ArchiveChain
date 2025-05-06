@@ -1,5 +1,4 @@
 package fcul.ArchiveMint.service;
-
 import fcul.ArchiveMint.configuration.KeyManager;
 import fcul.ArchiveMint.configuration.NodeConfig;
 import fcul.ArchiveMint.model.BackupLastExecuted;
@@ -30,7 +29,7 @@ public class BlockchainState {
 
     private Mempool mempool;
     private CoinLogic coinLogic = new CoinLogic();
-    private StorageContractLogic storageContractLogic = new StorageContractLogic();
+    private StorageContractLogic storageContractLogic;
     private Block lastExecutedBlock = null;
     //private BackupLastExecuted backup = null;
     private static int maxAmountTransactions = 8000;
@@ -46,7 +45,10 @@ public class BlockchainState {
 
     @PostConstruct
     public void init() {
+        String dbPath = nodeConfig.getStoragePath() + "/databases/";
+        new File(dbPath).mkdirs();
         this.mempool = new Mempool(nodeConfig.getId());
+        storageContractLogic = new StorageContractLogic(dbPath+"database.db");
     }
 
     public List<Transaction> executeBlock(Block toExecute,boolean isSync) {
@@ -255,7 +257,7 @@ public class BlockchainState {
     public void storeBlockAndStateInDisk(Block block, CoinLogic coinLogic, StorageContractLogic storageContractLogic)
             throws Exception {
         storeBlockinFile(block);
-        storeStateInDisk(coinLogic, storageContractLogic, block.getHeight());
+        //storeStateInDisk(coinLogic, storageContractLogic, block.getHeight());
     }
 
     public void storeBlockinFile(Block block) throws IOException {

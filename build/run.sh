@@ -65,7 +65,7 @@ if ! command -v upnpc >/dev/null 2>&1; then
   fi
 fi
 
-<<com
+#<<com
 # Check if port is already forwarded
 if upnpc -l 2>/dev/null | grep -q "$SERVER_PORT.*$LOCAL_IP:$SERVER_PORT"; then
   echo "ℹ️ Port $SERVER_PORT is already forwarded to $LOCAL_IP:$SERVER_PORT"
@@ -73,7 +73,7 @@ else
   echo "🔁 Forwarding port $SERVER_PORT to $LOCAL_IP:$SERVER_PORT via UPnP..."
   upnpc -e "ArchiveMint Node - Port $SERVER_PORT" -a "$LOCAL_IP" "$SERVER_PORT" "$SERVER_PORT" TCP
 fi
-com
+#com
 echo "here"
 # Fetch public IP address
 FARMER_IP=$(curl -4 ifconfig.me 2>/dev/null | tr -d '%')
@@ -109,7 +109,7 @@ app:
   fccnNetworkAddress: "http://85.245.113.27:8085"
   dedicatedStorage: $DEDICATED_STORAGE
   initializeStorage: true
-  initialVDFIterations: 3000000
+  initialVDFIterations: 500000
   timelord: $TIME_LORD
 EOF
 

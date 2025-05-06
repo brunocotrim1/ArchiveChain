@@ -13,6 +13,7 @@ import fcul.ArchiveMintUtils.Model.transactions.Transaction;
 import fcul.ArchiveMintUtils.Utils.CryptoUtils;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.text.similarity.LevenshteinDistance;
+import org.mapdb.HTreeMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -38,7 +39,7 @@ public class ExplorerService {
     public ResponseEntity<WalletDetailsModel> getWalletDetails(String address, long offset, long limit) {
         WalletDetailsModel wd = new WalletDetailsModel();
         wd.setAddress(address);
-        HashMap<String, List<StorageContract>> storageContractsMap = blockchainState.getStorageContractLogic()
+        Map<String, List<StorageContract>> storageContractsMap = blockchainState.getStorageContractLogic()
                 .getStorageContracts();
         List<StorageContract> contracts = new ArrayList<>();
         for (List<StorageContract> sc : storageContractsMap.values()) {
@@ -310,7 +311,7 @@ public class ExplorerService {
         List<StorageContract> allContracts;
         if (fileName == null || fileName.isEmpty()) {
             allContracts = new ArrayList<>();
-            HashMap<String, List<StorageContract>> storageContractsMap = blockchainState.getStorageContractLogic().getStorageContracts();
+            Map<String, List<StorageContract>> storageContractsMap = blockchainState.getStorageContractLogic().getStorageContracts();
             for (Map.Entry<String, List<StorageContract>> entry : storageContractsMap.entrySet()) {
                 allContracts.addAll(entry.getValue());
             }
@@ -358,7 +359,7 @@ public class ExplorerService {
     }
 
     public ResponseEntity<String> getTotalAmountOfContracts() {
-        HashMap<String, List<StorageContract>> storageContracts = blockchainState.getStorageContractLogic().getStorageContracts();
+        Map<String, List<StorageContract>> storageContracts = blockchainState.getStorageContractLogic().getStorageContracts();
         BigInteger totalAmount = BigInteger.ZERO;
         for (Map.Entry<String, List<StorageContract>> entry : storageContracts.entrySet()) {
             totalAmount = totalAmount.add(BigInteger.ONE);
@@ -423,10 +424,10 @@ public class ExplorerService {
     }
 
     public ResponseEntity<HashMap<String, BigInteger>> getStorageHistory() {
-        return ResponseEntity.ok(blockchainState.getStorageContractLogic().storageUsedHistory);
+        return ResponseEntity.ok(new HashMap<>(blockchainState.getStorageContractLogic().getStorageUsedHistory()));
     }
 
     public ResponseEntity<HashMap<String, BigInteger>> getFileHistory() {
-        return ResponseEntity.ok(blockchainState.getStorageContractLogic().archivedFileHistory);
+        return ResponseEntity.ok(new HashMap<>(blockchainState.getStorageContractLogic().getArchivedFileHistory()));
     }
 }
