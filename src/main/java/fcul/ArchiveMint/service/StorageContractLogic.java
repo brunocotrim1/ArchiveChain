@@ -41,7 +41,6 @@ public class StorageContractLogic implements Serializable {
     public StorageContractLogic(String dbPath) {
         db = DBMaker.fileDB(dbPath)
                 .fileMmapEnableIfSupported()
-                .transactionEnable()
                 .closeOnJvmShutdown()
                 .make();
         fileProvingWindows = db.hashMap("fileProvingWindows")
@@ -163,11 +162,11 @@ public class StorageContractLogic implements Serializable {
             return fileProofs;
         }
 
-        List<FileProvingWindow> toRemove = Collections.synchronizedList(new ArrayList<>());
+        List<FileProvingWindow> temp = Collections.synchronizedList(new ArrayList<>());
         fileProofs = currentMinerWindows.parallelStream()
                 .filter(window -> {
                     if (window.getPoDpChallenge() == null) {
-                        //temp.add(window);
+                        temp.add(window);
                         return false;
                     }
                     return !isSync;
@@ -186,7 +185,6 @@ public class StorageContractLogic implements Serializable {
                                         keyManager.getPrivateKey()
                                 )
                         ));
-                        toRemove.add(window);
                         return (Transaction) fileProofTransaction;
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -196,7 +194,9 @@ public class StorageContractLogic implements Serializable {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
-        currentMinerWindows.removeAll(toRemove);
+        currentMinerWindows.clear();
+        currentMinerWindows.addAll(temp);
+
         System.out.println("Provas ficheiros geradas: " + fileProofs.size());
         return fileProofs;
     }
@@ -240,7 +240,6 @@ public class StorageContractLogic implements Serializable {
             fileProvingWindows.put(contractHash, windows);
 
             //System.out.println("Processed file proof: " + fileProofTransaction);
-            db.commit();
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException(e);
@@ -283,7 +282,6 @@ public class StorageContractLogic implements Serializable {
             currentMinerWindows.add(window);
         }
         processSubmissionForFrontend(contract, block);
-        db.commit();
     }
 
     private void processSubmissionForFrontend(StorageContractSubmission submission, Block block) {
@@ -331,7 +329,6 @@ public class StorageContractLogic implements Serializable {
 
                 //System.out.println("Upcoming window: " + window);
             }
-            db.commit();
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException(e);
@@ -358,7 +355,6 @@ public class StorageContractLogic implements Serializable {
             windows.add(newWindow);
             fileProvingWindows.put(contractHash, windows);
         }
-        db.commit();
     }
 
 
@@ -420,12 +416,18 @@ public class StorageContractLogic implements Serializable {
     }
 
     private void updateFileProvingWindowsEntry(FileProvingWindow window, List<FileProvingWindow> windows) {
+        boolean found = false;
         for (FileProvingWindow w : windows) {
             if (w.getStartBlockIndex() == window.getStartBlockIndex() &&
-                    w.getEndBlockIndex() == window.getEndBlockIndex() && w.getContract().equals(window.getContract())) {
+                    w.getEndBlockIndex() == window.getEndBlockIndex() &&
+                    w.getContract().equals(window.getContract())) {
                 w.setState(window.getState());
+                found = true;
                 break;
             }
+        }
+        if (!found) {
+            System.out.println("Warning: No matching window found for update: " + window);
         }
     }
 
