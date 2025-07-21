@@ -23,6 +23,7 @@ import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -32,21 +33,29 @@ public class ArchiveMintClient {
     public static String hostUrl = "http://localhost:8080/blockchain/archiveFile";
 
     public static void main(String[] args) throws Exception {
-        String mnemonic = "ahead polar subject park cable prevent talk cover sick strike sound spirit";
+        String mnemonic = "spend fine guitar animal absorb screen rate census ceiling knock artist fog";
         //mnemonic = FCCNMnemonic;
         System.out.println("Mnemonic: " + mnemonic);
         KeyPair keyPair = CryptoUtils.generateKeys(mnemonic);
         PrivateKey privateKey = keyPair.getPrivate();
         PublicKey publicKey = keyPair.getPublic();
+        String address = CryptoUtils.getWalletAddress(Hex.encodeHexString(publicKey.getEncoded()));
         // Output the keys
         System.out.println("Private Key: " + Hex.encodeHexString(privateKey.getEncoded()));
         System.out.println("Public Key: " + Hex.encodeHexString(publicKey.getEncoded()));
-        System.out.println("Wallet Address: 0x" + Hex.encodeHexString(CryptoUtils.hash256(publicKey.getEncoded())));
-        getCoins("e1c94c37ac886f5aeb7433c3bc4a5d088c7fc4ed1b69fe0d092c7a67e3d99897");
+        System.out.println("Wallet Address: 0x" + CryptoUtils.getWalletAddress(Hex.encodeHexString(publicKey.getEncoded())));
+        //getCoins("c74a87da083cf2ba2914b1d419fc1c0b3117aa355f85aa406cf3b1260c25481a");
+
+        String randomMnemonic = "maze ride click cover asset ribbon plastic isolate rotate raw boat between";//CryptoUtils.generateMnemonic();
+        KeyPair keyPair2 = CryptoUtils.generateKeys(randomMnemonic);
+        String addressRandom = CryptoUtils.getWalletAddress(Hex.encodeHexString(keyPair2.getPublic().getEncoded()));
+        System.out.println("Random Mnemonic: " + randomMnemonic);
+        System.out.println("Random Wallet Address: 0x" + addressRandom);
+
         //uploadFile("PoSTest/relatorio_preliminar.pdf","www.fcul.pt/relatorio_preliminar.pdf", hostUrl,
         //"e1c94c37ac886f5aeb7433c3bc4a5d088c7fc4ed1b69fe0d092c7a67e3d99897", privateKey);
-        sendTransaction("70b1a0e4af52639af64c2f3db8b91d4cf98bf162628e460c8f1b890c4629f226",
-                Hex.encodeHexString(publicKey.getEncoded()), privateKey, getCoins("e1c94c37ac886f5aeb7433c3bc4a5d088c7fc4ed1b69fe0d092c7a67e3d99897"), 2000);
+        sendTransaction(addressRandom,
+                Hex.encodeHexString(publicKey.getEncoded()), privateKey, getCoins(address), 20000);
     }
 
     public static List<Coin> getCoins(String address) {
@@ -66,11 +75,14 @@ public class ArchiveMintClient {
     public static void sendTransaction(String receiver, String senderPk, PrivateKey privateKey, List<Coin> coins, float amount) throws DecoderException {
         RestTemplate restTemplate = new RestTemplate();
 
-        // Define the request URL
-        String url = "http://localhost:8080/blockchain/sendTransaction";
+        // Define the request URL with the query parameter for isCensured
+        String url = "http://localhost:8080/blockchain/sendTransaction?isCensured=" + false;
+
         // Setting headers
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // Create the transaction
         CurrencyTransaction transaction = CurrencyTransaction.builder()
                 .receiverAddress(receiver)
                 .senderAddress(CryptoUtils.getWalletAddress(senderPk))
@@ -78,12 +90,21 @@ public class ArchiveMintClient {
                 .amount(BigInteger.valueOf((long) amount))
                 .coins(coins.stream().map(Coin::getId).toList())
                 .build();
+
         transaction.setType(TransactionType.CURRENCY_TRANSACTION);
-        System.out.println(transaction.getCoins().size());
+
+        // Sign the transaction
         byte[] signature = CryptoUtils.ecdsaSign(Hex.decodeHex(transaction.getTransactionId()), privateKey);
         transaction.setSignature(Hex.encodeHexString(signature));
-        HttpEntity<Transaction> request = new HttpEntity<>(transaction, headers);
-        // Making the POST request
+
+        // Create a list of transactions to match the updated controller
+        List<Transaction> transactionList = new ArrayList<>();
+        transactionList.add(transaction);
+
+        // Wrap in HttpEntity
+        HttpEntity<List<Transaction>> request = new HttpEntity<>(transactionList, headers);
+
+        // Make the POST request
         ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
 
         System.out.println("Response: " + response.getBody());

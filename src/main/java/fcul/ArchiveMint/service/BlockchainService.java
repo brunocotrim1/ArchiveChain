@@ -295,6 +295,7 @@ public class BlockchainService {
         String seedNodeUrl = net.getOriginalSeedNode();
         synchronizing = true;
         long currentHeight = currentHeightP + 1;
+        System.out.println(currentHeight);
         try {
             System.out.println(Utils.YELLOW + "Sincronizar com a seed node: " + seedNodeUrl + Utils.RESET);
             RestTemplate restTemplate = new RestTemplate();
@@ -352,6 +353,7 @@ public class BlockchainService {
                 blockProcessingLock.unlock();
             }
         } catch (Exception e) {
+            e.printStackTrace();
             synchronizing = false;
             return false;
         }
@@ -514,6 +516,7 @@ public class BlockchainService {
     public boolean timelordAlgorithm(Block block) {
         if (finalizedBlockChain.isEmpty()) {
             syncNewNode(-1);
+            synchronizing = false;
             return false;
         }
 
@@ -601,6 +604,7 @@ public class BlockchainService {
             return true;
         } else if (block.getHeight() > lastFinalizedBlock.getHeight() + 1) {
             syncNewNode(lastFinalizedBlock.getHeight());
+            synchronizing = false;
         }
         return false;
     }

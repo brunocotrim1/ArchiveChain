@@ -112,16 +112,14 @@ public class BlockchainState {
             List<Transaction> validTransactions = new ArrayList<>();
             int i = 0;
             System.out.println("Tamanho Mempool: " + mempool.size());
-            while (i < maxAmountTransactions && mempool.size() > 0) {
-                Transaction transaction = mempool.poll();
-                if (transaction != null) {
-                    if (validateTransaction(transaction, coinLogic, storageContractLogic)) {
-                        if (cachedModifications.verifyDoubleSpend(transaction)) {
-                            validTransactions.add(transaction);
-                        }
+            Transaction transaction;
+            while (i < maxAmountTransactions && (transaction = mempool.poll()) != null) {
+                if (validateTransaction(transaction, coinLogic, storageContractLogic)) {
+                    if (cachedModifications.verifyDoubleSpend(transaction)) {
+                        validTransactions.add(transaction);
+                        i++;
                     }
                 }
-                i++;
             }
             System.out.println("Transacoes validas: " + validTransactions.size());
             return validTransactions;
@@ -321,14 +319,27 @@ public class BlockchainState {
         long height = blockAtHeight.getHeight();
         String baseDir = nodeConfig.getStoragePath() + "/state/";
         File[] dirs = new File(baseDir).listFiles();
+
+        if (dirs == null) {
+            // Optionally log a warning
+            System.err.println("Warning: Could not read directory: " + baseDir);
+            return;
+        }
+
         for (File dir : dirs) {
             if (dir.getName().contains("_")) {
-                long stateHeight = Long.parseLong(dir.getName().split("_")[0]);
-                if (stateHeight < height - 1) {
-                    dir.delete();
+                try {
+                    long stateHeight = Long.parseLong(dir.getName().split("_")[0]);
+                    if (stateHeight < height - 1) {
+                        dir.delete();
+                    }
+                } catch (NumberFormatException e) {
+                    // Ignore directories with unexpected names
+                    System.err.println("Invalid directory name format: " + dir.getName());
                 }
             }
         }
     }
+
 
 }

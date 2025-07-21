@@ -40,7 +40,6 @@ public class StorageContractLogic implements Serializable {
 
     public StorageContractLogic(String dbPath) {
         db = DBMaker.fileDB(dbPath)
-                .fileMmapEnableIfSupported()
                 .closeOnJvmShutdown()
                 .make();
         fileProvingWindows = db.hashMap("fileProvingWindows")
@@ -227,10 +226,10 @@ public class StorageContractLogic implements Serializable {
             window.setState(FileProvingWindowState.PROVED);
             //provingWindows.put(fileProofTransaction.getFileProof().getStorageContractHash(), null);
             String address = CryptoUtils.getWalletAddress(fileProofTransaction.getStorerPublicKey());
-            coinLogic.createCoin(address, new BigInteger(String.valueOf(contract.getValue())), block, true);
+            //coinLogic.createCoin(address, new BigInteger(String.valueOf(contract.getValue())), block, true);
             FileProvingWindow newWindow = new FileProvingWindow(contract, null,
-                    block.getHeight() + contract.getProofFrequency(),
-                    block.getHeight() + contract.getProofFrequency() + contract.getWindowSize());
+                    window.getEndBlockIndex() + contract.getProofFrequency(),
+                    window.getEndBlockIndex() + contract.getProofFrequency() + contract.getWindowSize());
             upcomingContracts.offer(newWindow);
             String contractHash = Hex.encodeHexString(contract.getHash());
 
@@ -249,7 +248,9 @@ public class StorageContractLogic implements Serializable {
 
     public void addStorageContract(StorageContractSubmission contract, Block block, KeyManager keyManager) throws DecoderException {
         if (storageContracts.containsKey(contract.getContract().getFileUrl())) {
-            storageContracts.get(contract.getContract().getFileUrl()).add(contract.getContract());
+            List<StorageContract> storageContractList = storageContracts.get(contract.getContract().getFileUrl());
+            storageContractList.add(contract.getContract());
+            storageContracts.put(contract.getContract().getFileUrl(), storageContractList);
         } else {
             List<StorageContract> storageContractList = new ArrayList<>();
             storageContractList.add(contract.getContract());
@@ -422,12 +423,13 @@ public class StorageContractLogic implements Serializable {
                     w.getEndBlockIndex() == window.getEndBlockIndex() &&
                     w.getContract().equals(window.getContract())) {
                 w.setState(window.getState());
+                w.setPoDpChallenge(window.getPoDpChallenge());
                 found = true;
                 break;
             }
         }
         if (!found) {
-            System.out.println("Warning: No matching window found for update: " + window);
+            //System.out.println("Warning: No matching window found for update: " + window);
         }
     }
 
