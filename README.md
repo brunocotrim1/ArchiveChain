@@ -24,7 +24,7 @@ git clone https://github.com/brunocotrim1/ArchiveChainUtils
 Navigate to the `ArchiveChainUtils` directory and build the project:
 ```bash
 cd ArchiveChainUtils
-mvn clean install
+sudo mvn clean install
 ```
 
 ### 3. Configure ArchiveChain
