@@ -9,14 +9,14 @@ spring:
 app:
   storagePath: ./nodes/${app.id}
   filesToPlotPath: ./nodes/files
-  farmerAddress: "http://85.245.113.27"
+  farmerAddress: "http://194.117.43.45"
   #Include the local node http://localhost:8080 and the main seed node
   seedNodes:
     #- "http://85.245.113.27:8080 Local node - Replace with yours and uncomment
-    - "http://85.245.113.27:8080" # Main seed nodes
-    - "http://85.245.113.27:8081"
+    - "http://194.117.43.45:8080" # Main seed nodes
+    - "http://194.117.43.45:8081"
   fccnPublicKey: "3059301306072a8648ce3d020106082a8648ce3d03010703420004e4a88d98f5ece99dae11bd4309307557e24876c2d389932c7b83f4c6012c41c803638b9aa38257f33d0a4137c9371fd59c13536ff807fa80261c8596d717d493"
-  fccnNetworkAddress: "http://85.245.113.27:8085"
+  fccnNetworkAddress: "http://194.117.43.45:8085"
   dedicatedStorage: 50000000 #in bytes to Gb
   initializeStorage: true
   initialVDFIterations: 1500000
